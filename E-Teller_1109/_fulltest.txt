@@ -1,0 +1,220 @@
+﻿
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Unit\ExampleTest[39m
+  [32;1mΓ£ô[39;22m[90m [39m[90mthat true is true[39m
+
+
+
+
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Feature\AdminUserIdentityValidationTest[39m
+  [32;1mΓ£ô[39;22m[90m [39m[90mduplicate email shows a clear message when addin[39m[90mΓÇª[39m [90m0.35s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mduplicate phone is rejected when adding a custom[39m[90mΓÇª[39m [90m0.03s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mstudent identity must be five digits and unique[39m[90m  [39m [90m0.03s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mduplicate phone is rejected when editing a user[39m[90m  [39m [90m0.04s[39m  
+
+
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Feature\CustomerActivationCodeRequestTest[39m
+  [32;1mΓ£ô[39;22m[90m [39m[90mactivation code is emailed and stored as a three[39m[90mΓÇª[39m [90m0.06s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90munknown username receives the same generic respo[39m[90mΓÇª[39m [90m0.03s[39m  
+
+
+
+
+
+
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Feature\CustomerTransactionApprovalTest[39m
+  [32;1mΓ£ô[39;22m[90m [39m[90mcustomer can reject a teller request without cha[39m[90mΓÇª[39m [90m0.04s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mcustomer can create a pin without a default pin[39m[90m  [39m [90m0.04s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mcustomer cannot use pin setup after a pin is alr[39m[90mΓÇª[39m [90m0.03s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mfifth wrong pin requires a reset and rejects the[39m[90mΓÇª[39m [90m0.06s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mcorrect customer pin is required before posting[39m[90m  [39m [90m0.04s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mposting failure rejects the pending request with[39m[90mΓÇª[39m [90m0.03s[39m  
+
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Feature\ExampleTest[39m
+  [32;1mΓ£ô[39;22m[90m [39m[90mthe application returns a successful response[39m[90m    [39m [90m0.61s[39m  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Feature\ProfileTest[39m
+  [32;1mΓ£ô[39;22m[90m [39m[90mtamu tidak bisa membuka halaman profil[39m[90m           [39m [90m0.03s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mhalaman profil tampil untuk semua peran[39m[90m          [39m [90m3.76s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mtidak ada unggah atau hapus foto pada peran mana[39m[90mΓÇª[39m [90m0.08s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mbagian email hanya untuk teller dan supervisor[39m[90m   [39m [90m0.08s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mstaf bisa mengubah nama dan field lain diabaikan[39m[90m [39m [90m0.03s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mnasabah tidak bisa mengubah nama[39m[90m                 [39m [90m0.03s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mnama wajib diisi dan maksimal 100 karakter[39m[90m       [39m [90m0.03s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mubah email ditolak bila sandi saat ini salah[39m[90m     [39m [90m0.03s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mubah email menolak email milik pengguna lain den[39m[90mΓÇª[39m [90m0.03s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mubah email berhasil huruf kecil dan tercatat di[39m[90mΓÇª [39m [90m0.03s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mnasabah tidak bisa mengubah email lewat request[39m[90m  [39m [90m0.03s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mdropdown topbar berisi profil saya dan keluar[39m[90m    [39m [90m0.04s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mtidak ada parameter id yang bisa membuka profil[39m[90mΓÇª [39m [90m0.04s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mubah sandi ditolak bila sandi saat ini salah[39m[90m     [39m [90m0.03s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mubah sandi menolak sandi baru sama dengan sandi[39m[90mΓÇª [39m [90m0.03s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mubah sandi menolak konfirmasi yang tidak cocok[39m[90m   [39m [90m0.03s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mubah sandi berhasil mengakhiri sesi lain dan aud[39m[90mΓÇª[39m [90m0.04s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mpercobaan ubah sandi dibatasi throttle[39m[90m           [39m [90m0.10s[39m  
+
+    
+
+
+
+
+
+
+
+
+  [39;41;1m FAIL [39;49;22m[39m Tests\Feature\TellerCashReturnTest[39m
+  [31;1mΓ¿»[39;22m[90m [39m[90mdashboard teller menampilkan form pengembalian kas[39m
+  [31;1mΓ¿»[39;22m[90m [39m[90mteller dapat mengajukan pengembalian dan supervisor mengonfirmasinya[39m
+  [31;1mΓ¿»[39;22m[90m [39m[90mpengembalian kas tidak boleh melebihi kas laci[39m
+  [31;1mΓ¿»[39;22m[90m [39m[90mpengembalian kas tidak boleh diajukan dua kali[39m
+  [31;1mΓ¿»[39;22m[90m [39m[90msupervisor dapat mencatat kas laporan masuk ke brankas[39m
+
+
+  [39;41;1m FAIL [39;49;22m[39m Tests\Feature\UserProfilePhotoUploadTest[39m
+  [31;1mΓ¿»[39;22m[90m [39m[90madmin can upload a user profile photo when editing a user[39m
+  [31mΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ[39m  
+  [41;1m FAILED [49;22m [1mTests\Feature\TellerCashReturn[22mΓÇª [41;1m QueryException [49;22m  
+[39;1m  SQLSTATE[HY000]: General error: 1 near "MODIFY": syntax error (Connection: sqlite, Database: :memory:, SQL: ALTER TABLE transactions MODIFY COLUMN status ENUM('pending','approved','rejected','success','corrected','void') NOT NULL DEFAULT 'pending')[39;22m
+
+  at [32mvendor\laravel\framework\src\Illuminate\Database\Connection.php[39m:[32m857[39m
+    853Γûò             $exceptionType = ($isUniqueConstraintError = $this->isUniqueConstraintError($e))
+    854Γûò                 ? UniqueConstraintViolationException::class
+    855Γûò                 : QueryException::class;
+    856Γûò 
+  Γ₧£ 857Γûò             $exception = new $exceptionType(
+    858Γûò                 $this->getNameWithReadWriteType(),
+    859Γûò                 $query,
+    860Γûò                 $this->prepareBindings($bindings),
+    861Γûò                 $e,
+
+  [33m1   [39m[39;1mvendor\laravel\framework\src\Illuminate\Database\Connection.php[39;22m:[39;1m857[39;22m
+
+  [33m2   [39m[39;1mvendor\laravel\framework\src\Illuminate\Database\Connection.php[39;22m:[39;1m595[39;22m
+  [90m    NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[HY000]: General error: 1 near "MODIFY": syntax error")[39m
+
+  [31mΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ[39m  
+  [41;1m FAILED [49;22m [1mTests\Feature\TellerCashReturn[22mΓÇª [41;1m QueryException [49;22m  
+[39;1m  SQLSTATE[HY000]: General error: 1 near "MODIFY": syntax error (Connection: sqlite, Database: :memory:, SQL: ALTER TABLE transactions MODIFY COLUMN status ENUM('pending','approved','rejected','success','corrected','void') NOT NULL DEFAULT 'pending')[39;22m
+
+  at [32mvendor\laravel\framework\src\Illuminate\Database\Connection.php[39m:[32m857[39m
+    853Γûò             $exceptionType = ($isUniqueConstraintError = $this->isUniqueConstraintError($e))
+    854Γûò                 ? UniqueConstraintViolationException::class
+    855Γûò                 : QueryException::class;
+    856Γûò 
+  Γ₧£ 857Γûò             $exception = new $exceptionType(
+    858Γûò                 $this->getNameWithReadWriteType(),
+    859Γûò                 $query,
+    860Γûò                 $this->prepareBindings($bindings),
+    861Γûò                 $e,
+
+  [33m1   [39m[39;1mvendor\laravel\framework\src\Illuminate\Database\Connection.php[39;22m:[39;1m857[39;22m
+
+  [33m2   [39m[39;1mvendor\laravel\framework\src\Illuminate\Database\Connection.php[39;22m:[39;1m595[39;22m
+  [90m    NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[HY000]: General error: 1 near "MODIFY": syntax error")[39m
+
+  [31mΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ[39m  
+  [41;1m FAILED [49;22m [1mTests\Feature\TellerCashReturn[22mΓÇª [41;1m QueryException [49;22m  
+[39;1m  SQLSTATE[HY000]: General error: 1 near "MODIFY": syntax error (Connection: sqlite, Database: :memory:, SQL: ALTER TABLE transactions MODIFY COLUMN status ENUM('pending','approved','rejected','success','corrected','void') NOT NULL DEFAULT 'pending')[39;22m
+
+  at [32mvendor\laravel\framework\src\Illuminate\Database\Connection.php[39m:[32m857[39m
+    853Γûò             $exceptionType = ($isUniqueConstraintError = $this->isUniqueConstraintError($e))
+    854Γûò                 ? UniqueConstraintViolationException::class
+    855Γûò                 : QueryException::class;
+    856Γûò 
+  Γ₧£ 857Γûò             $exception = new $exceptionType(
+    858Γûò                 $this->getNameWithReadWriteType(),
+    859Γûò                 $query,
+    860Γûò                 $this->prepareBindings($bindings),
+    861Γûò                 $e,
+
+  [33m1   [39m[39;1mvendor\laravel\framework\src\Illuminate\Database\Connection.php[39;22m:[39;1m857[39;22m
+
+  [33m2   [39m[39;1mvendor\laravel\framework\src\Illuminate\Database\Connection.php[39;22m:[39;1m595[39;22m
+  [90m    NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[HY000]: General error: 1 near "MODIFY": syntax error")[39m
+
+  [31mΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ[39m  
+  [41;1m FAILED [49;22m [1mTests\Feature\TellerCashReturn[22mΓÇª [41;1m QueryException [49;22m  
+[39;1m  SQLSTATE[HY000]: General error: 1 near "MODIFY": syntax error (Connection: sqlite, Database: :memory:, SQL: ALTER TABLE transactions MODIFY COLUMN status ENUM('pending','approved','rejected','success','corrected','void') NOT NULL DEFAULT 'pending')[39;22m
+
+  at [32mvendor\laravel\framework\src\Illuminate\Database\Connection.php[39m:[32m857[39m
+    853Γûò             $exceptionType = ($isUniqueConstraintError = $this->isUniqueConstraintError($e))
+    854Γûò                 ? UniqueConstraintViolationException::class
+    855Γûò                 : QueryException::class;
+    856Γûò 
+  Γ₧£ 857Γûò             $exception = new $exceptionType(
+    858Γûò                 $this->getNameWithReadWriteType(),
+    859Γûò                 $query,
+    860Γûò                 $this->prepareBindings($bindings),
+    861Γûò                 $e,
+
+  [33m1   [39m[39;1mvendor\laravel\framework\src\Illuminate\Database\Connection.php[39;22m:[39;1m857[39;22m
+
+  [33m2   [39m[39;1mvendor\laravel\framework\src\Illuminate\Database\Connection.php[39;22m:[39;1m595[39;22m
+  [90m    NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[HY000]: General error: 1 near "MODIFY": syntax error")[39m
+
+  [31mΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ[39m  
+  [41;1m FAILED [49;22m [1mTests\Feature\TellerCashReturn[22mΓÇª [41;1m QueryException [49;22m  
+[39;1m  SQLSTATE[HY000]: General error: 1 near "MODIFY": syntax error (Connection: sqlite, Database: :memory:, SQL: ALTER TABLE transactions MODIFY COLUMN status ENUM('pending','approved','rejected','success','corrected','void') NOT NULL DEFAULT 'pending')[39;22m
+
+  at [32mvendor\laravel\framework\src\Illuminate\Database\Connection.php[39m:[32m857[39m
+    853Γûò             $exceptionType = ($isUniqueConstraintError = $this->isUniqueConstraintError($e))
+    854Γûò                 ? UniqueConstraintViolationException::class
+    855Γûò                 : QueryException::class;
+    856Γûò 
+  Γ₧£ 857Γûò             $exception = new $exceptionType(
+    858Γûò                 $this->getNameWithReadWriteType(),
+    859Γûò                 $query,
+    860Γûò                 $this->prepareBindings($bindings),
+    861Γûò                 $e,
+
+  [33m1   [39m[39;1mvendor\laravel\framework\src\Illuminate\Database\Connection.php[39;22m:[39;1m857[39;22m
+
+  [33m2   [39m[39;1mvendor\laravel\framework\src\Illuminate\Database\Connection.php[39;22m:[39;1m595[39;22m
+  [90m    NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[HY000]: General error: 1 near "MODIFY": syntax error")[39m
+
+  [31mΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ[39m  
+  [41;1m FAILED [49;22m [1mTests\Feature\UserProfilePhoto[22mΓÇª [41;1m QueryException [49;22m  
+[39;1m  SQLSTATE[HY000]: General error: 1 near "MODIFY": syntax error (Connection: sqlite, Database: :memory:, SQL: ALTER TABLE transactions MODIFY COLUMN status ENUM('pending','approved','rejected','success','corrected','void') NOT NULL DEFAULT 'pending')[39;22m
+
+  at [32mvendor\laravel\framework\src\Illuminate\Database\Connection.php[39m:[32m857[39m
+    853Γûò             $exceptionType = ($isUniqueConstraintError = $this->isUniqueConstraintError($e))
+    854Γûò                 ? UniqueConstraintViolationException::class
+    855Γûò                 : QueryException::class;
+    856Γûò 
+  Γ₧£ 857Γûò             $exception = new $exceptionType(
+    858Γûò                 $this->getNameWithReadWriteType(),
+    859Γûò                 $query,
+    860Γûò                 $this->prepareBindings($bindings),
+    861Γûò                 $e,
+
+  [33m1   [39m[39;1mvendor\laravel\framework\src\Illuminate\Database\Connection.php[39;22m:[39;1m857[39;22m
+
+  [33m2   [39m[39;1mvendor\laravel\framework\src\Illuminate\Database\Connection.php[39;22m:[39;1m595[39;22m
+  [90m    NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[HY000]: General error: 1 near "MODIFY": syntax error")[39m
+
+
+  [90mTests:[39m    [31;1m6 failed[39;22m[90m,[39m[39m [39m[32;1m32 passed[39;22m[90m (174 assertions)[39m
+  [90mDuration:[39m [39m6.77s[39m
+

@@ -1,0 +1,39 @@
+﻿
+> build
+> vite build
+
+[36mvite v8.2.1 [32mbuilding client environment for production...[36m[39m
+[2K
+transforming...Γ£ô 246 modules transformed.
+rendering chunks...
+computing gzip size...
+public/build/assets/public-sans-vietnamese-500-normal-DjztbcKe.woff2    4.49 kB
+public/build/assets/public-sans-vietnamese-600-normal-P4BtCUdw.woff2    4.50 kB
+public/build/assets/public-sans-vietnamese-700-normal-D97ShjGS.woff2    4.51 kB
+public/build/assets/public-sans-vietnamese-400-normal-TxZB8OSn.woff2    4.52 kB
+public/build/assets/public-sans-vietnamese-700-normal-Dq5VrXjD.woff     5.93 kB
+public/build/assets/public-sans-vietnamese-500-normal-CXYe29CY.woff     5.94 kB
+public/build/assets/public-sans-vietnamese-400-normal-BO1meqcx.woff     5.94 kB
+public/build/assets/public-sans-vietnamese-600-normal-CcnAzmUX.woff     5.94 kB
+public/build/manifest.json                                              8.01 kB Γöé gzip:   0.79 kB
+public/build/assets/public-sans-latin-ext-500-normal-DC-z7ASZ.woff2    10.44 kB
+public/build/assets/public-sans-latin-ext-400-normal-mk90oQqJ.woff2    10.45 kB
+public/build/assets/public-sans-latin-ext-600-normal-DchWdWJ_.woff2    10.52 kB
+public/build/assets/public-sans-latin-ext-700-normal-CgolUQuG.woff2    10.53 kB
+public/build/assets/public-sans-latin-ext-700-normal-jWHjnMgZ.woff     14.18 kB
+public/build/assets/public-sans-latin-ext-400-normal-B02wwOdZ.woff     14.20 kB
+public/build/assets/public-sans-latin-ext-500-normal-BHCCp-na.woff     14.20 kB
+public/build/assets/public-sans-latin-ext-600-normal-DfkbVac2.woff     14.26 kB
+public/build/assets/public-sans-latin-600-normal-Fru-LXNs.woff2        14.59 kB
+public/build/assets/public-sans-latin-700-normal-BqJmxWdE.woff2        14.60 kB
+public/build/assets/public-sans-latin-400-normal-8Rpg0ruU.woff2        14.63 kB
+public/build/assets/public-sans-latin-500-normal-NlrCPXnF.woff2        14.65 kB
+public/build/assets/public-sans-latin-400-normal-SBbinRkI.woff         18.48 kB
+public/build/assets/public-sans-latin-500-normal-vCxiVFAq.woff         18.52 kB
+public/build/assets/public-sans-latin-600-normal-BR59oU-I.woff         18.55 kB
+public/build/assets/public-sans-latin-700-normal-Dm-oTPSL.woff         18.65 kB
+public/build/assets/app-D0EQXmVv.css                                    4.86 kB Γöé gzip:   0.71 kB
+public/build/assets/app-dDcazUsc.css                                   89.73 kB Γöé gzip:  17.04 kB
+public/build/assets/app-B78SKAYU.js                                   483.38 kB Γöé gzip: 127.19 kB
+
+[32mΓ£ô built in 2.96s[39m

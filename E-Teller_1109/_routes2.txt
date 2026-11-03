@@ -1,0 +1,9 @@
+﻿
+
+  GET|HEAD  profil .. profile.show ΓÇ║ ProfileController@show
+  PUT       profil profile.update ΓÇ║ ProfileController@updaΓÇª
+  PUT       profil/email profile.email ΓÇ║ ProfileControllerΓÇª
+  PUT       profil/sandi profile.password ΓÇ║ ProfileControlΓÇª
+
+                                         Showing [4] routes
+

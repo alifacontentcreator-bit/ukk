@@ -1,0 +1,3 @@
+﻿shell.blade.php:53: @if(session('success') || session('error') || (isset($errors) && $errors->any()))
+shell.blade.php:61: @if($errors->any())
+shell.blade.php:64: <ul>@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>

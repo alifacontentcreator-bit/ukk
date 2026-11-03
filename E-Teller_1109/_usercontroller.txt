@@ -1,0 +1,25 @@
+﻿68: public function store(Request $request)
+77: 'photo' => [
+225: $photoPath = null;
+227: if ($request->hasFile('photo')) {
+228: $photoPath = $request->file('photo')
+229: ->store('photos', 'public');
+254: 'photo' => $photoPath,
+308: $photoPath = null;
+310: if ($request->hasFile('photo')) {
+311: $photoPath = $request->file('photo')
+312: ->store('photos', 'public');
+332: 'photo' => $photoPath,
+383: $photoPath = null;
+385: if ($request->hasFile('photo')) {
+386: $photoPath = $request->file('photo')
+387: ->store('photos', 'public');
+415: 'photo' => $photoPath,
+448: public function update(Request $request, User $user)
+473: 'photo' => [
+560: if ($request->hasFile('photo')) {
+561: $data['photo'] = $request->file('photo')
+562: ->store('photos', 'public');
+573: ->update([
+575: 'updated_at' => now(),
+579: $user->update($data);

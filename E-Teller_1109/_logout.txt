@@ -1,0 +1,49 @@
+﻿pemulihan-sandi.blade.php:59: <form method="POST" action="{{ route('admin.pemulihan-sandi.approve', $request->id) }}" onsubmit="return confirm('{{ $request->status === 'email_failed' ? 'Kirim ulang tautan reset ke email ini?' : 'Setujui permintaan dan kirim tautan reset ke email ini?' }}')">
+rekening-edit.blade.php:44: onsubmit="var r = prompt('Alasan reset darurat PIN (wajib, minimal 10 karakter):'); if (!(r && r.trim().length > 9)) { alert('Alasan wajib diisi, minimal 10 karakter.'); return false; } this.reason.value = r.trim(); return confirm('Minta nasabah membuat PIN baru melalui aplikasi? Tindakan ini tercatat.');">
+icon.blade.php:11: 'logout' => '<path d="M10 4H5v16h5M15 8l4 4-4 4M19 12H9"/>',
+user-menu.blade.php:22: <form method="POST" action="{{ route('logout') }}">
+user-menu.blade.php:25: <x-icon name="logout" /><span>Keluar</span>
+shell.blade.php:44: <form class="sidebar-foot" action="{{ route('logout') }}" method="POST">
+shell.blade.php:46: <button type="submit" title="Keluar dari aplikasi"><x-icon name="logout" /><span>Keluar</span></button>
+show.blade.php:189: <label for="profileConfirmPassword">Konfirmasi sandi baru</label>
+jadwal.blade.php:31: <form method="POST" action="{{ route('supervisor.jadwal.destroy', $j->id) }}" onsubmit="return confirm('Hapus jadwal {{ $j->user->name ?? '' }}?')">@csrf @method('DELETE')
+jadwal.blade.php:78: <form method="POST" action="{{ route('supervisor.shift.destroy', $s->id) }}" onsubmit="return confirm('Hapus shift ini?')">@csrf @method('DELETE')<button class="btn btn-danger btn-sm" type="submit">Hapus</button></form>
+koreksi.blade.php:41: <form action="{{ route('supervisor.koreksi.approve', $c->id) }}" method="POST" onsubmit="return confirm('Setujui koreksi ini? Saldo nasabah akan langsung disesuaikan.')">@csrf<button class="btn btn-primary btn-sm" type="submit">Setujui</button></form>
+laporan.blade.php:267: onsubmit="return confirm('Setujui laporan ini? Pastikan uang fisik sudah dihitung ulang.')">
+laporan.blade.php:284: onsubmit="return confirm('Pastikan uang fisik sudah benar-benar diterima Supervisor sebelum mencatat pengembalian kas.')">
+laporan.blade.php:313: onsubmit="return confirm('Buka kembali laporan ini?')">
+rekonsiliasi.blade.php:88: <div class="stat-note">Perkiraan saldo setelah perpindahan kas terkonfirmasi</div>
+rekonsiliasi.blade.php:177: Modal baru masuk ke saldo laci setelah dikonfirmasi Teller.
+rekonsiliasi.blade.php:243: {{-- MODAL MENUNGGU KONFIRMASI TELLER --}}
+rekonsiliasi.blade.php:248: <h2 class="section-title">Modal Menunggu Konfirmasi Teller</h2>
+rekonsiliasi.blade.php:289: Menunggu konfirmasi Teller
+rekonsiliasi.blade.php:296: Tidak ada modal yang menunggu konfirmasi Teller.
+rekonsiliasi.blade.php:308: {{-- KAS KEMBALI MENUNGGU KONFIRMASI SUPERVISOR --}}
+rekonsiliasi.blade.php:313: <h2 class="section-title">Konfirmasi Pengembalian Kas</h2>
+rekonsiliasi.blade.php:316: Konfirmasikan setelah kas benar-benar diterima di brankas.
+rekonsiliasi.blade.php:356: Menunggu konfirmasi
+rekonsiliasi.blade.php:362: action="{{ route('supervisor.kas.konfirmasi-pengembalian', $transfer->id) }}"
+rekonsiliasi.blade.php:364: onsubmit="return confirm('Pastikan kas benar-benar sudah diterima di brankas. Lanjutkan konfirmasi?')"
+rekonsiliasi.blade.php:369: Konfirmasi Kas Masuk
+rekonsiliasi.blade.php:377: Tidak ada pengembalian kas yang menunggu konfirmasi.
+reset-pin.blade.php:25: <form action="{{ route('supervisor.reset-pin.approve', $r->id) }}" method="POST" onsubmit="return confirm('Setujui reset PIN? Nasabah akan diminta membuat PIN baru di aplikasi.')">@csrf<button class="btn btn-primary btn-sm" type="submit">Setujui</button></form>
+validasi.blade.php:26: <form action="{{ route('supervisor.validasi.approve', $t->id) }}" method="POST" onsubmit="return confirm('Setujui transaksi ini?')">@csrf<button class="btn btn-primary btn-sm" type="submit">Setujui</button></form>
+absensi.blade.php:39: <form method="POST" action="{{ route('teller.absensi.pulang') }}" onsubmit="return confirm('Catat absen pulang sekarang?')">@csrf<input type="hidden" name="duty_shift_id" value="{{ $shift?->id }}"><button class="btn btn-soft btn-sm" type="submit"><x-icon name="logout" />Absen Pulang</button></form>
+dashboard.blade.php:63: <div class="section-title">Konfirmasi Penerimaan Modal</div>
+dashboard.blade.php:64: <div class="section-sub">Supervisor telah menyerahkan modal operasional. Periksa jumlahnya sebelum dikonfirmasi.</div>
+dashboard.blade.php:66: <span class="badge badge-warn">Menunggu konfirmasi</span>
+dashboard.blade.php:77: <form action="{{ route('teller.kas.konfirmasi-modal', $openingTransfer->id) }}" method="POST"
+dashboard.blade.php:78: onsubmit="return confirm('Apakah Anda benar-benar sudah menerima modal tersebut?')">
+dashboard.blade.php:80: <button type="submit" class="btn btn-primary"><x-icon name="check" /> Konfirmasi Penerimaan Modal</button>
+dashboard.blade.php:99: <span>Pengembalian <b>Rp {{ number_format((float) $closingTransfer->amount, 0, ',', '.') }}</b> sudah diajukan dan menunggu konfirmasi Supervisor.</span>
+dashboard.blade.php:106: <span>Kas <b>Rp {{ number_format((float) $closingTransfer->amount, 0, ',', '.') }}</b> hari ini sudah dikembalikan dan dikonfirmasi Supervisor.</span>
+dashboard.blade.php:111: onsubmit="return confirm('Pastikan jumlah uang yang diserahkan sudah benar. Ajukan pengembalian kas?')">
+koreksi.blade.php:90: <button type="submit" class="btn btn-primary" onclick="return confirm('Kirim pengajuan koreksi ini ke Supervisor?')">Ajukan koreksi ke Supervisor</button>
+laporan-harian.blade.php:56: onsubmit="return confirm('Pastikan jumlah uang fisik kas akhir sudah dihitung dengan benar.')">
+reset-pin.blade.php:22: <button type="submit" class="btn btn-primary" onclick="return confirm('Kirim pengajuan reset PIN ini ke Supervisor?')">Ajukan ke Supervisor</button>
+reset-pin.blade.php:55: <form method="POST" action="{{ route('teller.reset-pin.cancel', $r->id) }}" onsubmit="return confirm('Batalkan pengajuan ini?')">@csrf<button type="submit" class="btn btn-danger btn-sm">Batalkan</button></form>
+transaksi.blade.php:157: onclick="return confirm('Kirim permintaan ke aplikasi nasabah? Transaksi dan perubahan saldo baru dilakukan setelah nasabah memasukkan PIN.')">
+app.js:151: function isLogoutForm(form) {
+app.js:153: return /\/logout\/?$/.test(new URL(form.action, window.location.href).pathname);
+app.js:163: // Konfirmasi keluar untuk semua role, supaya tidak keluar karena salah klik.
+app.js:165: if (isLogoutForm(form) && !window.confirm('Anda yakin untuk keluar dari halaman ini?')) {

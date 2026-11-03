@@ -1,0 +1,2 @@
+﻿@echo off
+"C:\Users\Lenovo\.config\herd\bin\php84\php.exe" %*

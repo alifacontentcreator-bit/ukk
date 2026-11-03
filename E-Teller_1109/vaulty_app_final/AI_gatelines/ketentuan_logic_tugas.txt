@@ -1,0 +1,189 @@
+AUDIT KESESUAIAN PROYEK E-TELLER BANK MINI
+
+Perbandingan Hasil Wawancara Kebutuhan Pengguna & Soal UKK Bank Mini Sekolah
+
+
+
+Nama file :E-Teller_1109
+
+Username & Password masing-masing Role :
+
+Role
+
+Username
+
+Password
+
+Admin
+
+Admin
+
+rahasia123
+
+Teller
+
+Teller
+
+rahasia123
+
+Supervisor
+
+Spv
+
+rahasia123
+
+Nasabah(belum buat apk)
+
+
+
+
+
+Note:
+untuk nasabah dengan nama Irfan Cahyo Wibowo Username: IrfanCahyo030804(tanggal,bulan,tahun lahir si nasabah) password nya sebabasnya admin aja
+
+1. Dibanding Hasil Wawancara
+
+SUDAH SESUAI
+
+Saldo minimal Rp10.000: dicek saat penarikan (TransactionController::store), dicek ulang di SupervisorController::approve.
+
+Pemisahan produk simpanan: Siswa vs Guru/Karyawan (accounts.product_type) + filter kategori di halaman jurnal admin — menjawab keluhan “laporan jurnal kurang spesifik”.
+
+Transaksi koreksi: setoran/penarikan sudah ada (TransactionCorrectionController), sesuai jawaban Teller Q6.
+
+Idempotency key: ada di tabel transactions — sesuai jawaban dev-to-dev soal koneksi putus saat “Simpan”.
+
+Approval Laporan Harian: dilakukan satu per satu, bukan bulk — sesuai jawaban Supervisor Q2.
+
+Dashboard Supervisor: hanya menampilkan daftar pending, bukan notifikasi proaktif — sesuai jawaban Supervisor Q3.
+
+Keamanan kredensial: password login di-hash (Hash::make), PIN nasabah juga di-hash.
+
+Kode sandi koreksi transaksi: field sandi_koreksi ada di form, tapi cuma disimpan sebagai teks bebas — tidak divalidasi terhadap kode rahasia yang sebenarnya.
+
+HAMPIR SESUAI (ada, tapi kurang)
+
+Export laporan jurnal: tombol “Export Excel” ada, tapi isinya sebenarnya file CSV, bukan Excel/PDF asli — padahal narasumber eksplisit bilang “tidak disarankan CSV”.
+
+Metrik dashboard audit jurnal: narasumber minta tampil Tanggal, Nama Teller, Nama Nasabah, Rekening; yang ada sekarang cuma filter kategori Siswa/Guru.
+
+Audit log: halaman admin/audit-log sudah dibuat, tapi tidak ada kode manapun yang menulis ke tabel audit_logs — halaman akan selalu kosong. Filter rentang waktu juga belum ada.
+
+BELUM SESUAI / BELUM ADA
+
+Alur approval transaksi per-item: wawancara & SOP mengasumsikan Teller langsung eksekusi (dana masuk saat itu juga); versi ini menahan saldo sampai Supervisor approve satu-satu, bertentangan dengan semangat pembagian tugas.
+
+Bulk input identitas teller: belum ada fitur import massal di UserController.
+
+Tabel avalis/teller terhubung absensi: (Nama, Kelas, No WA) tidak ada sama sekali; identitas teller masih murni dari tabel users.
+
+Pemisahan role Customer Service & Accounting: belum ada; pembuatan rekening nasabah masih di bawah role admin, role supervisor merangkap accounting.
+
+Kolom nomor presensi terpisah dari NIS: belum ada di form tambah user.
+
+Fitur simulasi/preview perubahan parameter: tidak relevan saat ini karena narasumber belum berencana mengubah nilai saldo minimal.
+
+2. Dibanding Soal UKK Bank Mini
+
+SUDAH SESUAI
+
+Struktur tabel: users, accounts, transactions, accounting_journals — relasi 1→M sesuai skema; FK ke accounts/users di tabel transaksi tidak pakai cascade (default RESTRICT), jejak audit aman dari terhapus.
+
+Validasi PIN 6 digit: nasabah untuk penarikan (RBAC poin 3.1).
+
+Password hashing: untuk login (RBAC poin 3.1).
+
+Middleware role: membatasi akses tiap prefix /admin, /supervisor, /teller, /nasabah — sesuai semangat RBAC ketat.
+
+Mekanisme double-entry jurnal: 2 baris debit/kredit seimbang per transaksi; kode akun pakai 111/211 (bukan 101/201 di soal, namun itu cuma contoh, bukan aturan mengikat).
+
+Fitur QR Code: untuk identitas nasabah ada (scan-rekening, qr-scanner, rekening-qr).
+
+Rekonsiliasi kas fisik vs sistem: di penutupan kas (ReportController::approve) — menghitung pecahan uang fisik vs saldo sistem, menolak approve kalau selisih.
+
+HAMPIR SESUAI (ada, tapi kurang)
+
+Middleware Session Guard (poin 3.2): soal minta jika Teller/Nasabah nekat akses URL Supervisor, sistem “langsung memblokir dan melempar balik ke halaman login”. Yang terjadi: RoleMiddleware hanya abort(403) — muncul halaman error 403, bukan redirect ke halaman login.
+
+Check Constraint nominal > 0 (poin 1.3): validasi amount cuma di level Laravel Request (min:1000), belum ada CHECK constraint di level database sesuai rubrik.
+
+Engine InnoDB (poin 1.1): tidak diset eksplisit di migration/config ('engine' => null), mengandalkan default MySQL — biasanya aman, tapi tidak dijamin eksplisit.
+
+Skema tabel nasabah terpisah: di soal ERD ada tabel nasabah tersendiri; di project ini data nasabah digabung ke tabel users (dibedakan lewat kolom role). Secara fungsi jalan, tapi beda struktur literal dari ERD.
+
+BELUM SESUAI
+
+Poin 2.1 & 2.2 (algoritma setoran/penarikan otomatis): soal minta begitu Teller simpan transaksi valid, sistem langsung menambah/mengurangi saldo dan mencetak struk. Versi ini menahan perubahan saldo sampai Supervisor approve — tidak real-time seperti diminta, berisiko kategori “Belum Kompeten” di rubrik.
+
+Cetak struk transaksi: route teller.transaksi.cetak memanggil method printSlip() yang tidak ada di TransactionController — kalau tombol cetak struk diklik, akan fatal error. Fitur ini secara teknis rusak.
+
+Poin 3.2 batasan Supervisor: “tidak boleh melayani transaksi nasabah secara mandiri” — karena Supervisor sekarang jadi pihak yang meng-approve/eksekusi tiap transaksi setor-tarik (bukan cuma Laporan Harian), ini menabrak semangat pemisahan tugas RBAC di soal.
+
+
+
+Rekomendasi Prioritas
+
+Kembalikan alur transaksi Teller supaya saldo & jurnal langsung terbentuk saat simpan (tanpa approval per-transaksi); approval tetap di level Laporan Harian saja.
+
+Tambahkan method printSlip() yang hilang di TransactionController agar fitur cetak struk tidak fatal error.
+
+
+
+
+Note:
+
+
+disemua role bagian ini hapus/hilangin aja ga guna
+2. 
+
+“V” nya dihilangin aja
+a) bagian profil ini bisa di klik sama email nya bisa diisikan biar bisa konfirmasi ketika lupa password.
+tapi keknya Cuma bisa masukkin alamat email sih/no telepon buat  jaga”lupa password.
+
+b) Kan untuk logic yang belum ada aku pengen si admin sekalin ngasi profil setiap user juga,kenapa? Karena ketika dia mau ambil atau setoran itu sbelum input transaksi fotonya bisa di samakan sm nasabah,klo bukan muka si nasabah gaboleh transaksi.
+
+c) saat transaksi di teller itu kan ada menunjukkan profil seharusnya sesuai juga dengan profil yang udah i setting admin.
+
+d) aku masih bingung ya ketika teller/spv/nasabah ketika lupa password gmn,apa nanti di form login ada lupa password,tapi gamungkin ada registrasi soalnya semua akun itu dibuat admin jadi yg bisa tambah akun Cuma admin. Kalau menurutku ada 2 opsi mau kirim lewat email atau nomor telepon.
+
+e) sama fungsi search di semua fitur masih non aktif belum berfungsi
+
+f) untuk format tanggal/waktu(terutama) masih belum sesuai sama terjadinya proses tsb jadi harusnya jam 17.00 malah 02.00
+
+g) Di dashboard admin di tabel manajemen pengguna
+
+h) sebenarnya di teller itu gaada masukin pin nya tapi karena buat uji coba transaksi karena apk nya nasabah (karena rencananya ketika teller udah scan/masukin no rek nanti disuruh pilih mau setor apa narik,kalau narik nanti di apk nasabah nya otomatis i suruh ngisi pin nya jadi kek ada pop up gitu,nah baru deh bisa isi nominal terbilang dll.
+
+
+
+
+Tabel nya aneh kolom-kolom nya tuh penggennya ID | Kelas | NISN | NIS | NAMA | ROLE | STATUS | AKSI
+
+sama itu data nya presisi contoh kolom AKSI bawahnya button :edit blokir hapus
+
+
+f) Pastikan semua tabel descending
+
+h) sama di semua role ada search nya contoh kaya di admin gaada search nya samsek. Terus format search nya tanggal waktu sama kelas nama
+
+
+i) rapikan dan serasikan tampilan jangan ada card-card gede dan ga beraturan kaya di supervisor,soalnya tempilannya bea beda jijik sekali.
+ ketentuan tampilan :
+
+1. nuansa hijau yang ga gelap dan ga kecerahan
+2.simple tapi rapi ga keliatan ai pokonya sederhana gak ai banget
+j) 
+dibagian input nominal selisih itu tolong ketika input misal 1000 nanti otomatis ada titiknya jadi 1.000 trus 10000 jadi 10.000 kaya di input nominal di transaksi tellernya.
+
+k) 
+dibagian edit rekening(Master data rekening) form saldo ini hapus aja gaguna
+
+l) 
+dibawah nama alifaifa itu ada  nisn nya itu dihapus aja jad Cuma nama sama profilnya sesuai pas admin buat akun user.
+
+
+UNTUK APLIKASI YANG SAMA SEKALI BELUM DIBUAT (UNTUK NASABAH DOANG)
+
+a) nasabah punya username dan password default dari admin tapi bisa rubah password tpi gabisa rubah username.nanti dalamnya mungkin ada profil yang udah lengkap Cuma ada data email an pw buat ganti pw default nya sama ada riwayat transaksi  (ada tabel lengkap tanggal jam nama sama saldo terbaru +400.000 misal)ama saldo dia sama ketika saldo dia bertambah(transaksi nya udah di approve spv) maka nanti ada notif dan saldo bertambah,ada qr juga buat scan identitas dia.
+
+b) ada form buat ganti pin default dari admin.jadi ketika di login first banget itu disuruh ganti pin,nah yang ganti pin ini tolong logic nya belum ketemu,kalo aku kepikiran admin tapi AI bilang lebih baik teller yang berurusan langsung ma nasabah trs apakah harus approve ke spv or ngga masih bimbang, tapi udh ada logic ketika ia minta reset pin setelah semua di periksa bat validasi nanti PIN nya di reset ke default 123456 lagi trus ketika dia login lagi ada pop up buat nyuruh ganti pin gitu.

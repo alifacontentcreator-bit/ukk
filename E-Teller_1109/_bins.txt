@@ -1,0 +1,13 @@
+﻿
+
+Name   : node.exe
+Source : C:\Program Files\nodejs\node.exe
+
+Name   : npm.ps1
+Source : C:\Program Files\nodejs\npm.ps1
+
+Name   : php.bat
+Source : C:\Users\Lenovo\.config\herd\bin\php.bat
+
+
+

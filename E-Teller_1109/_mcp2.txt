@@ -1,0 +1,3 @@
+﻿User.php:20: * must_change_password & password_changed_at sengaja TIDAK dimasukkan ke Fillable
+User.php:44: 'must_change_password' => 'boolean',
+CustomerPayload.php:56: 'must_change_password' => (bool) $user->must_change_password,

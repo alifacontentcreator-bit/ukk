@@ -1,0 +1,117 @@
+﻿
+> vaulty_app_final\app\Http\Controllers\AuthController.php:1
+55:    public function authenticate(Request $request)
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+56:    {
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+57:        // 1. Validasi Input form harus diisi
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+58:        $credentials = $request->validate([
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+59:            'username' => ['required', 'string'],
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+60:            'password' => ['required', 'string'],
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+61:        ]);
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+62:
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+63:        // 2. PENGECEKAN GEMBOK ASLI (Mencocokkan Usernam
+e & Password di Database)
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+64:        if (Auth::attempt($credentials)) {
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+65:            $user = Auth::user();
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+66:
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+67:            // 3. Keamanan Tambahan: Tolak login jika aku
+n berstatus 'blocked' (Diblokir)
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+68:            if ($user->status === 'blocked') {
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+69:                Auth::logout();
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+70:                $request->session()->invalidate();
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+71:                $request->session()->regenerateToken();
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+72:                return back()->withErrors([
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+73:                    'username' => 'Akses ditolak. Akun An
+da sedang diblokir. Hubungi Administrator.',
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+74:                ]);
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+75:            }
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+76:
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+77:            // 4. Buat sesi login baru agar aman dari ser
+angan Hacker (Session Fixation)
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+78:            $request->session()->regenerate();
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+79:
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+80:            // 5. Arahkan ke pintu yang benar sesuai Jaba
+tan (Role)
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+81:            if ($user->role === 'admin') {
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+82:                return redirect()->route('admin.dashboard
+');
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+83:            } elseif ($user->role === 'teller') {
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+84:                return redirect()->route('teller.dashboar
+d');
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+85:            } elseif ($user->role === 'supervisor') {
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+86:                return redirect()->route('supervisor.dash
+board');
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+87:            } else {
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+88:                // Nasabah (Customer)
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+89:                return redirect()->route('customer.dashbo
+ard');
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+90:            }
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+91:        }
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+92:
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+93:        // Jika kombinasi Username & Password tidak cocok
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+94:        return back()->withErrors([
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+95:            'username' => 'Nama pengguna atau sandi yang 
+Anda masukkan salah.',
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+96:        ])->onlyInput('username');
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+97:    }
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+98:
+  vaulty_app_final\app\Http\Controllers\AuthController.php:1
+99:    public function logout(Request $request)
+  vaulty_app_final\app\Http\Controllers\AuthController.php:2
+00:    {
+  vaulty_app_final\app\Http\Controllers\AuthController.php:2
+01:        Auth::logout();
+  vaulty_app_final\app\Http\Controllers\AuthController.php:2
+02:        $request->session()->invalidate();
+  vaulty_app_final\app\Http\Controllers\AuthController.php:2
+03:        $request->session()->regenerateToken();
+  vaulty_app_final\app\Http\Controllers\AuthController.php:2
+04:        return redirect('/');
+  vaulty_app_final\app\Http\Controllers\AuthController.php:2
+05:    }
+  vaulty_app_final\app\Http\Controllers\AuthController.php:2
+06:}
+
+

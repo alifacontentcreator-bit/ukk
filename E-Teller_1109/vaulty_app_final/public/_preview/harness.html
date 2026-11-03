@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<style>
+html,body{margin:0;height:100%;background:#111;overflow:hidden}
+iframe{border:0;display:block;background:#fff}
+</style>
+</head>
+<body>
+<iframe id="f"></iframe>
+<script>
+var q = new URLSearchParams(location.search);
+var f = document.getElementById('f');
+f.style.width = (q.get('w') || 1366) + 'px';
+f.style.height = (q.get('h') || 768) + 'px';
+f.src = (q.get('p') || 'login') + '.html';
+function measure() {
+    var d = f.contentDocument;
+    if (!d || !d.body) return;
+    var p = d.querySelector('.auth-panel');
+    var w = d.querySelector('.auth-form-wrap');
+    var v = d.querySelector('.auth-visual-inner');
+    var vis = d.querySelector('.auth-visual');
+    var idn = d.querySelector('.auth-identity');
+    var ttl = d.querySelector('.auth-title');
+    var r = w ? w.getBoundingClientRect() : null;
+    var vr = v ? v.getBoundingClientRect() : null;
+    var ir = idn ? idn.getBoundingClientRect() : null;
+    var tr = ttl ? ttl.getBoundingClientRect() : null;
+    var m = {
+        win: [d.defaultView.innerWidth, d.defaultView.innerHeight],
+        docScroll: d.documentElement.scrollHeight,
+        panelScroll: p ? p.scrollHeight : null,
+        panelClient: p ? p.clientHeight : null,
+        wrapTop: r ? Math.round(r.top) : null,
+        wrapBottom: r ? Math.round(r.bottom) : null,
+        visualTop: vr ? Math.round(vr.top) : null,
+        visualBottom: vr ? Math.round(vr.bottom) : null,
+        visualDisplay: vis ? d.defaultView.getComputedStyle(vis).display : null,
+        identityH: ir ? Math.round(ir.height) : null,
+        titleH: tr ? Math.round(tr.height) : null
+    };
+    document.body.setAttribute('data-metrics', JSON.stringify(m));
+}
+setInterval(measure, 120);
+</script>
+</body>
+</html>

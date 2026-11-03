@@ -1,0 +1,13 @@
+﻿   PASS  Tests\Unit\ExampleTest
+   PASS  Tests\Feature\AdminUserIdentityValidationTest
+   PASS  Tests\Feature\CustomerActivationCodeRequestTest
+   PASS  Tests\Feature\CustomerTransactionApprovalTest
+   PASS  Tests\Feature\ExampleTest
+   PASS  Tests\Feature\ProfileTest
+   FAILED  Tests\Feature\TellerCashReturnΓÇª  QueryException   
+   FAILED  Tests\Feature\TellerCashReturnΓÇª  QueryException   
+   FAILED  Tests\Feature\TellerCashReturnΓÇª  QueryException   
+   FAILED  Tests\Feature\TellerCashReturnΓÇª  QueryException   
+   FAILED  Tests\Feature\TellerCashReturnΓÇª  QueryException   
+   FAILED  Tests\Feature\UserProfilePhotoΓÇª  QueryException   
+  Tests:    6 failed, 32 passed (174 assertions)

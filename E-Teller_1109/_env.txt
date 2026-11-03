@@ -1,0 +1,4 @@
+﻿.env:APP_URL=https://192.168.0.102
+.env:SESSION_DRIVER=database
+.env.example:APP_URL=http://localhost
+.env.example:SESSION_DRIVER=database

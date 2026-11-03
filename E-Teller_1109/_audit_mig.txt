@@ -1,0 +1,2 @@
+﻿2026_08_13_000001_create_audit_logs_table.php:14: Schema::create('audit_logs', function (Blueprint $table) {
+2026_08_13_000001_create_audit_logs_table.php:114: Schema::dropIfExists('audit_logs');

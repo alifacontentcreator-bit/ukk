@@ -1,0 +1,45 @@
+﻿
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Feature\ProfileTest[39m
+  [32;1mΓ£ô[39;22m[90m [39m[90mtamu tidak bisa membuka halaman profil[39m[90m           [39m [90m0.32s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mhalaman profil tampil untuk semua peran[39m[90m          [39m [90m0.14s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mtidak ada unggah atau hapus foto pada peran mana[39m[90mΓÇª[39m [90m0.10s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mbagian email hanya untuk teller dan supervisor[39m[90m   [39m [90m0.10s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mstaf bisa mengubah nama dan field lain diabaikan[39m[90m [39m [90m0.05s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mnasabah tidak bisa mengubah nama[39m[90m                 [39m [90m0.03s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mnama wajib diisi dan maksimal 100 karakter[39m[90m       [39m [90m0.03s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mubah email ditolak bila sandi saat ini salah[39m[90m     [39m [90m0.04s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mubah email menolak email milik pengguna lain den[39m[90mΓÇª[39m [90m0.03s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mubah email menolak email milik pengguna lain wal[39m[90mΓÇª[39m [90m0.03s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mubah email berhasil huruf kecil dan tercatat di[39m[90mΓÇª [39m [90m0.03s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mnasabah tidak bisa mengubah email lewat request[39m[90m  [39m [90m0.03s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mdropdown topbar berisi profil saya dan keluar[39m[90m    [39m [90m0.05s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mtidak ada parameter id yang bisa membuka profil[39m[90mΓÇª [39m [90m0.04s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mubah sandi ditolak bila sandi saat ini salah[39m[90m     [39m [90m0.03s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mubah sandi menolak sandi baru sama dengan sandi[39m[90mΓÇª [39m [90m0.03s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mubah sandi menolak konfirmasi yang tidak cocok[39m[90m   [39m [90m0.03s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mubah sandi berhasil mengakhiri sesi lain dan aud[39m[90mΓÇª[39m [90m0.04s[39m  
+  [32;1mΓ£ô[39;22m[90m [39m[90mpercobaan ubah sandi dibatasi throttle[39m[90m           [39m [90m0.06s[39m  
+
+  [90mTests:[39m    [32;1m19 passed[39;22m[90m (118 assertions)[39m
+  [90mDuration:[39m [39m1.82s[39m
+

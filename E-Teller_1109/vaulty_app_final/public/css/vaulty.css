@@ -1,0 +1,13 @@
+:root{--et-green:#2d8a64;--et-green-dark:#1e6a4b;--et-border:#dce3e0;--et-page:#f7f9f8;--et-text:#35423e;--et-muted:#8a9491;--et-shadow:0 2px 4px rgba(0,0,0,0.05)}
+*{box-sizing:border-box}html,body{margin:0;padding:0;min-height:100%;font-family:'Segoe UI',sans-serif;color:var(--et-text);background:var(--et-page)}
+a{text-decoration:none;color:inherit}
+button,input,select,textarea{font:inherit}
+.et-main{min-height:100vh;background:var(--et-page)}
+.et-topbar{height:60px;background:#fff;border-bottom:1px solid var(--et-border);display:flex;align-items:center;padding:0 30px}
+table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--et-border);border-radius:8px}
+th{background:#f0f4f2;padding:12px;text-align:left;font-size:11px;text-transform:uppercase;color:var(--et-green-dark);border-bottom:2px solid var(--et-border)}
+td{padding:12px;border-top:1px solid var(--et-border);font-size:13px}
+.btn-action{padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;text-decoration:none;display:inline-block;margin-right:2px}
+.btn-edit{background:#e0e7ff;color:#4338ca}
+.btn-block{background:#fef3c7;color:#92400e}
+.btn-delete{background:#fee2e2;color:#991b1b}

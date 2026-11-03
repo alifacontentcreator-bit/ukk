@@ -1,0 +1,7 @@
+﻿dashboard.blade.php
+history.blade.php
+notifications.blade.php
+qr-account.blade.php
+qr-scanner.blade.php
+receipt.blade.php
+saldo.blade.php

@@ -1,0 +1,32 @@
+﻿7: Kelas lama (.et-*, .vaulty-*, .card, .stat, .btn-*) tetap didefinisikan
+192: .card,.et-card{background:#fff;border:1px solid var(--line);border-radius:var(--r-card);
+225: .card-head,.section-head{display:flex;align-items:center;justify-content:space-between;
+227: .card-title,.section-title{font-size:12.5px;font-weight:700}
+228: .section-sub,.card-sub{margin-top:1px;color:var(--muted);font-size:var(--fs-helper)}
+229: .card-body{padding:12px}
+230: .card>.section-head:last-child{border-bottom:0}
+310: .field-icon{position:relative}
+311: .field-icon input{padding-right:32px}
+312: .field-icon .toggle-pass{position:absolute;right:4px;top:50%;transform:translateY(-50%);
+315: .field-icon .toggle-pass:hover{background:var(--sage);color:var(--green)}
+316: .field-icon .toggle-pass .et-ico{width:14px;height:14px}
+317: .field-icon .toggle-pass .ico-off{display:none}
+318: .field-icon .toggle-pass[data-state="on"] .ico-show{display:none}
+319: .field-icon .toggle-pass[data-state="on"] .ico-off{display:block}
+356: .btn-primary,.btn-success,.primary-btn{background:var(--green);color:#fff}
+357: .btn-primary:hover,.btn-success:hover,.primary-btn:hover{background:var(--green-dark)}
+358: .btn-soft{background:#fff;border-color:var(--line-3);color:var(--green-dark)}
+359: .btn-soft:hover{background:var(--sage);border-color:var(--line-3)}
+385: .badge,.status{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;
+387: .badge::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor;flex:none}
+388: .badge-ok,.status,.badge-success{background:var(--ok-bg);color:var(--ok)}
+389: .badge-warn,.badge-warning{background:var(--warn-bg);color:var(--warn)}
+390: .badge-danger,.badge-bad{background:var(--bad-bg);color:var(--bad)}
+391: .badge-soft,.badge-info,.badge-neutral{background:var(--info-bg);color:var(--info)}
+392: .badge-outline{background:#fff;border:1px solid var(--line-3);color:var(--muted)}
+393: .badge-outline::before{display:none}
+555: .card-header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+561: .stack{display:grid;gap:var(--gap)}
+688: .profile-card .card-body{padding:16px}
+709: .profile-section .card-body{padding:16px}
+821: .card,.panel,.et-card{box-shadow:none!important;border-color:#ccc!important;
