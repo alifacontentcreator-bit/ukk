@@ -7,11 +7,23 @@
 @section('page-actions')
     <form method="GET" action="{{ route('teller.laporan') }}" class="actions no-print">
         <div class="field">
-            <label for="laporan_tanggal">Tanggal</label>
-            <input id="laporan_tanggal" type="date" name="tanggal" value="{{ $tanggal }}" onchange="this.form.submit()">
+            <label for="laporan_tanggal">Tanggal laporan</label>
+            <select id="laporan_tanggal" name="tanggal" onchange="this.form.submit()">
+                <option value="{{ today()->toDateString() }}" @selected($tanggal === today()->toDateString())>{{ today()->format('d/m/Y') }} (hari ini)</option>
+                @foreach($editableReports as $draft)
+                    @if(\Carbon\Carbon::parse($draft->report_date)->toDateString() !== today()->toDateString())
+                        <option value="{{ \Carbon\Carbon::parse($draft->report_date)->toDateString() }}" @selected($tanggal === \Carbon\Carbon::parse($draft->report_date)->toDateString())>{{ \Carbon\Carbon::parse($draft->report_date)->format('d/m/Y') }} ({{ $draft->status === 'rejected' ? 'ditolak, perlu direvisi' : 'perlu diperbaiki' }})</option>
+                    @endif
+                @endforeach
+            </select>
         </div>
     </form>
-    <button class="btn btn-soft btn-sm no-print" type="button" onclick="window.print()"><x-icon name="printer" /> Cetak</button>
+    <a class="btn btn-soft btn-sm no-print" href="{{ route('teller.koreksi') }}"><x-icon name="history" /> Riwayat transaksi</a>
+    @if($reportHariIni)
+        <a class="btn btn-soft btn-sm no-print" href="{{ route('teller.laporan.cetak', $reportHariIni->id) }}" target="_blank" rel="noopener"><x-icon name="printer" /> Cetak Rekap</a>
+    @else
+        <button class="btn btn-soft btn-sm no-print" type="button" onclick="window.print()"><x-icon name="printer" /> Cetak</button>
+    @endif
 @endsection
 
 @section('content')
@@ -22,17 +34,30 @@
     $kasAkhirSistem = $kasAwal + $mutasiBersih;
 @endphp
 
-    @if($tanggal == date('Y-m-d'))
+    @if($unreadReportCount > 0)
+        <div class="alert alert-danger section" role="status">
+            <x-icon name="alert" />
+            <span>
+                Ada {{ $unreadReportCount }} notifikasi baru dari Supervisor tentang laporan harian.
+                <a href="{{ route('teller.notifikasi') }}">Lihat notifikasi</a>
+            </span>
+        </div>
+    @endif
+
+    @if($tanggal === today()->toDateString() || in_array($reportHariIni?->status, ['draft', 'rejected'], true))
         <section class="panel no-print">
             <div class="panel-head"><span>Status Laporan Harian</span><x-icon name="flag" /></div>
             <div class="panel-body" style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;align-items:center">
                 <div>
-                    @if(!$reportHariIni)
+                    @if(!$reportHariIni && $tanggal === today()->toDateString())
                         <div class="name" style="font-size:13px">Belum dibuat</div>
                         <p class="helper">Buat laporan untuk mulai merekap kas harian.</p>
                     @elseif($reportHariIni->status == 'draft')
                         <div class="name" style="font-size:13px;color:var(--warn)">Draf tersimpan</div>
                         <p class="helper">Periksa kas akhir fisik, lalu kirim laporan kepada Supervisor.</p>
+                    @elseif($reportHariIni->status == 'rejected')
+                        <div class="name" style="font-size:13px;color:var(--bad)">Laporan ditolak Supervisor</div>
+                        <p class="helper">{{ $reportHariIni->rejected_reason ?: 'Laporan perlu direvisi agar kas fisik sesuai dengan kas sistem.' }}</p>
                     @elseif($reportHariIni->status == 'submitted')
                         <div class="name" style="font-size:13px">Menunggu verifikasi</div>
                         <p class="helper">Laporan sudah dikirim dan menunggu pemeriksaan Supervisor.</p>
@@ -47,6 +72,12 @@
                             @csrf
                             <button class="btn btn-primary btn-sm" type="submit"><x-icon name="save" /> Buat Laporan Harian</button>
                         </form>
+                    @elseif($reportHariIni->status == 'rejected')
+                        <form method="POST" action="{{ route('teller.laporan-harian.revisi', $reportHariIni->id) }}"
+                              onsubmit="return confirm('Buka laporan ini untuk direvisi? Hitung ulang uang fisik kas akhir lalu kirim ulang ke Supervisor.')">
+                            @csrf
+                            <button class="btn btn-primary btn-sm" type="submit"><x-icon name="refresh" /> Revisi Laporan Harian</button>
+                        </form>
                     @endif
                 </div>
             </div>
@@ -55,21 +86,31 @@
                 <form method="POST" action="{{ route('teller.laporan-harian.kirim') }}"
                       onsubmit="return confirm('Pastikan jumlah uang fisik kas akhir sudah dihitung dengan benar.')">
                     @csrf
+                                        <input type="hidden" name="tanggal" value="{{ $tanggal }}">
                     <div class="card-body" style="border-top:1px solid var(--line-2)">
-                        <span class="section-label">Rincian fisik kas akhir</span>
-                        <div class="form-grid-3">
-                            <div class="field">
-                                <label for="p100">Rp 100.000</label>
-                                <input id="p100" type="number" name="pecahan_100k" value="{{ old('pecahan_100k', 0) }}" min="0" required>
-                            </div>
-                            <div class="field">
-                                <label for="p50">Rp 50.000</label>
-                                <input id="p50" type="number" name="pecahan_50k" value="{{ old('pecahan_50k', 0) }}" min="0" required>
-                            </div>
-                            <div class="field">
-                                <label for="p20">Rp 20.000</label>
-                                <input id="p20" type="number" name="pecahan_20k" value="{{ old('pecahan_20k', 0) }}" min="0" required>
-                            </div>
+                        <span class="section-label">Rincian lembaran uang fisik kas akhir</span>
+                        <div class="form-grid-3" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+                            @foreach(\App\Models\DailyReport::PECAHAN_FISIK as $pecahan)
+                                <div class="field">
+                                    <label for="{{ $pecahan['kolom'] }}">Rp {{ number_format($pecahan['nominal'], 0, ',', '.') }}</label>
+                                    <input id="{{ $pecahan['kolom'] }}" type="number" name="{{ $pecahan['kolom'] }}"
+                                           value="{{ old($pecahan['kolom'], $reportHariIni->{$pecahan['kolom']} ?? 0) }}"
+                                           min="0" required>
+                                </div>
+                            @endforeach
+                        </div>
+
+                        <span class="section-label" style="margin-top:14px">Rincian lembaran saldo awal (opsional)</span>
+                        <p class="helper" style="margin:0 0 8px">Hitung lembaran modal yang kamu terima. Bila dikosongkan, cetakan memakai total modal sistem.</p>
+                        <div class="form-grid-3" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+                            @foreach(\App\Models\DailyReport::PECAHAN_AWAL as $pecahan)
+                                <div class="field">
+                                    <label for="{{ $pecahan['kolom'] }}">Rp {{ number_format($pecahan['nominal'], 0, ',', '.') }}</label>
+                                    <input id="{{ $pecahan['kolom'] }}" type="number" name="{{ $pecahan['kolom'] }}"
+                                           value="{{ old($pecahan['kolom'], $reportHariIni->{$pecahan['kolom']} ?? 0) }}"
+                                           min="0">
+                                </div>
+                            @endforeach
                         </div>
                     </div>
                     <div class="form-actions" style="padding:0 12px 12px;margin:0;border-top:0">

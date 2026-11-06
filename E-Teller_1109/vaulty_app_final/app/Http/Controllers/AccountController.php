@@ -105,7 +105,7 @@ class AccountController extends Controller
 
         $resets->forceReset($account, auth()->user(), $data['reason']);
 
-        return back()->with('success', 'Reset PIN darurat tercatat. Nasabah dapat membuat PIN baru melalui aplikasi.');
+        return back()->with('success', 'PIN sementara nasabah telah direset ke 123456 dan notifikasi telah dikirim.');
     }
 
     public function qr(Account $account)

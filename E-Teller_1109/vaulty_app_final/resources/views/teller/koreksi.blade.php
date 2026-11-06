@@ -75,7 +75,7 @@
                         <option value="tambah">Tambahkan saldo nasabah</option>
                     </select>
                 </div>
-                <div class="field"><label for="cAmount">Nominal selisih (Rp)</label><input id="cAmount" type="number" name="amount" min="1000" placeholder="Misal: 90000" required></div>
+                <div class="field"><label for="cAmount">Nominal selisih (Rp)</label><input id="cAmount" type="number" name="amount" min="1" placeholder="Misal: 90000" required><span class="helper" id="cAmountHint">Pengurangan tidak memiliki minimal, saldo tersisa wajib Rp 10.000.</span></div>
             </div>
             <div class="field"><label for="cKode">Kode koreksi (SOP)</label>
                 <select id="cKode" name="sandi_koreksi" required>
@@ -118,4 +118,15 @@
         @if($corrections->hasPages())<x-pager :paginator="$corrections" />@endif
     </section>
 </div>
+<script>
+document.getElementById('cJenis')?.addEventListener('change', function () {
+    const amount = document.getElementById('cAmount');
+    const hint = document.getElementById('cAmountHint');
+    const isAddition = this.value === 'tambah';
+    amount.min = isAddition ? '5000' : '1';
+    hint.textContent = isAddition
+        ? 'Penambahan minimal Rp 5.000.'
+        : 'Pengurangan tidak memiliki minimal, saldo tersisa wajib Rp 10.000.';
+});
+</script>
 @endsection

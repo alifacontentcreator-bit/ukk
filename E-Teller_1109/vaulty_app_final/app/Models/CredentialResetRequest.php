@@ -50,7 +50,7 @@ class CredentialResetRequest extends Model
     public function statusLabel(): string
     {
         return match ($this->status) {
-            self::STATUS_PENDING => $this->isExpired() ? 'Kedaluwarsa' : 'Menunggu Supervisor',
+            self::STATUS_PENDING => $this->isExpired() ? 'Kedaluwarsa' : 'Menunggu Admin',
             self::STATUS_APPROVED => 'Disetujui',
             self::STATUS_REJECTED => 'Ditolak',
             self::STATUS_EXPIRED => 'Kedaluwarsa',

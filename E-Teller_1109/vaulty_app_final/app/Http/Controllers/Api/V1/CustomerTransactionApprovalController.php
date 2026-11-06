@@ -44,7 +44,7 @@ class CustomerTransactionApprovalController extends Controller
         TransactionPostingService $posting
     ): JsonResponse {
         $data = $request->validate([
-            'pin' => ['required', 'digits:6'],
+            'pin' => [$approval->type === 'withdrawal' ? 'required' : 'nullable', 'digits:6'],
         ]);
         $user = $request->user();
 
@@ -81,27 +81,29 @@ class CustomerTransactionApprovalController extends Controller
                     ], 410);
                 }
 
-                $check = $pins->verify($account, (string) $data['pin']);
+                if ($lockedApproval->type === 'withdrawal') {
+                    $check = $pins->verify($account, (string) $data['pin']);
 
-                if ($check['status'] === 'locked') {
-                    $lockedApproval->update([
-                        'status' => 'rejected',
-                        'processed_at' => now(),
-                    ]);
+                    if ($check['status'] === 'locked') {
+                        $lockedApproval->update([
+                            'status' => 'rejected',
+                            'processed_at' => now(),
+                        ]);
 
-                    return response()->json([
-                        'message' => $pins->lockedMessage($check['retry_after']),
-                        'code' => $check['reset_required'] ? 'PIN_RESET_REQUIRED' : 'PIN_LOCKED',
-                        'retry_after' => $check['retry_after'],
-                    ], 423);
-                }
+                        return response()->json([
+                            'message' => $pins->lockedMessage($check['retry_after']),
+                            'code' => $check['reset_required'] ? 'PIN_RESET_REQUIRED' : 'PIN_LOCKED',
+                            'retry_after' => $check['retry_after'],
+                        ], 423);
+                    }
 
-                if ($check['status'] === 'wrong') {
-                    return response()->json([
-                        'message' => 'PIN salah. Sisa percobaan: ' . $check['attempts_left'] . '.',
-                        'code' => 'PIN_INVALID',
-                        'attempts_left' => $check['attempts_left'],
-                    ], 422);
+                    if ($check['status'] === 'wrong') {
+                        return response()->json([
+                            'message' => 'PIN salah. Sisa percobaan: ' . $check['attempts_left'] . '.',
+                            'code' => 'PIN_INVALID',
+                            'attempts_left' => $check['attempts_left'],
+                        ], 422);
+                    }
                 }
 
                 $account->load('user');

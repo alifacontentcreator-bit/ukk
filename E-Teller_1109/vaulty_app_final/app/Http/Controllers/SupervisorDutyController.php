@@ -3,11 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\DutyAttendance;
-use App\Models\DutySchedule;
 use App\Models\DutyShift;
+use App\Models\DutyWeeklySchedule;
 use App\Models\User;
 use App\Services\PetugasSheet;
-use Carbon\Carbon;
 use DomainException;
 use Illuminate\Http\Request;
 
@@ -52,10 +51,8 @@ class SupervisorDutyController extends Controller
 
         $absensi = $query->orderByDesc('duty_date')->orderBy('check_in_at')->paginate(20)->withQueryString();
 
-        // Terjadwal hari ini tetapi belum ada catatan kehadiran sama sekali.
-        $belumAbsen = DutySchedule::with(['user', 'shift'])
-            ->whereDate('duty_date', today())
-            ->get()
+        // Terjadwal hari ini (dari template mingguan) tetapi belum ada catatan kehadiran.
+        $belumAbsen = DutyWeeklySchedule::forActiveDate(today())
             ->filter(fn ($j) => !DutyAttendance::where('user_id', $j->user_id)
                 ->whereDate('duty_date', today())
                 ->where('duty_shift_id', $j->duty_shift_id)
@@ -122,68 +119,86 @@ class SupervisorDutyController extends Controller
 
     // ===================== JADWAL & SHIFT =====================
 
-    public function scheduleIndex(Request $request)
+    /**
+     * Halaman jadwal jaga: template mingguan (Senin–Jumat).
+     *
+     * Supervisor mengatur sekali per hari dalam minggu, lalu jadwal
+     * otomatis berlaku setiap minggu (tidak perlu diisi tiap tanggal).
+     */
+    public function scheduleIndex()
     {
-        $f = $request->validate(['minggu' => ['nullable', 'date']]);
-
-        $start = Carbon::parse($f['minggu'] ?? today())->startOfWeek(Carbon::MONDAY);
-        $end = $start->copy()->addDays(6);
-
-        $jadwal = DutySchedule::with(['shift', 'user'])
-            ->whereDate('duty_date', '>=', $start)
-            ->whereDate('duty_date', '<=', $end)
+        $jadwal = DutyWeeklySchedule::with(['shift', 'user'])
+            ->orderBy('day_of_week')
             ->get()
-            ->groupBy(fn ($j) => $j->duty_date->toDateString());
+            ->groupBy('day_of_week');
 
         $shifts = DutyShift::orderBy('start_time')->get();
         $tellers = User::where('role', 'teller')->where('status', 'active')->orderBy('name')->get();
+        $hari = DutyWeeklySchedule::HARI;
 
-        return view('supervisor.jadwal', compact('start', 'end', 'jadwal', 'shifts', 'tellers'));
+        return view('supervisor.jadwal', compact('jadwal', 'shifts', 'tellers', 'hari'));
     }
 
+    /**
+     * Menambah petugas ke jadwal pada hari tertentu (template mingguan).
+     */
     public function scheduleStore(Request $request)
     {
         $data = $request->validate([
+            'hari' => ['required', 'integer', 'between:1,7'],
             'duty_shift_id' => ['required', 'integer', 'exists:duty_shifts,id'],
-            'tanggal' => ['required', 'date', 'after_or_equal:today'],
             'petugas' => ['required', 'array', 'min:1', 'max:50'],
             'petugas.*' => ['integer', 'exists:users,id'],
         ], [
-            'tanggal.after_or_equal' => 'Jadwal tidak dapat dibuat untuk tanggal yang sudah lewat.',
+            'hari.required' => 'Pilih hari jaga.',
             'petugas.required' => 'Pilih minimal satu petugas.',
         ]);
+
+        $shift = DutyShift::findOrFail($data['duty_shift_id']);
+
+        if (!$shift->is_active) {
+            return back()->withErrors(['jadwal' => 'Shift "' . $shift->name . '" sedang nonaktif. Aktifkan dahulu bila ingin dipakai.']);
+        }
 
         $tellerIds = User::where('role', 'teller')->whereIn('id', $data['petugas'])->pluck('id');
 
         $dibuat = 0;
+
         foreach ($tellerIds as $id) {
-            $row = DutySchedule::firstOrCreate(
-                ['duty_shift_id' => $data['duty_shift_id'], 'user_id' => $id, 'duty_date' => $data['tanggal']],
+            $row = DutyWeeklySchedule::firstOrCreate(
+                [
+                    'day_of_week' => $data['hari'],
+                    'duty_shift_id' => $data['duty_shift_id'],
+                    'user_id' => $id,
+                ],
                 ['created_by' => auth()->id()]
             );
+
             $dibuat += $row->wasRecentlyCreated ? 1 : 0;
         }
 
-        return back()->with('success', $dibuat . ' petugas dijadwalkan.' . ($dibuat < $tellerIds->count() ? ' Sebagian sudah terjadwal sebelumnya.' : ''));
+        $namaHari = DutyWeeklySchedule::HARI[$data['hari']] ?? '';
+
+        return back()->with(
+            'success',
+            $dibuat . ' petugas ditambahkan ke jadwal hari ' . $namaHari .
+            '. Jadwal ini berlaku setiap minggu sampai diubah.'
+        );
     }
 
+    /**
+     * Menghapus satu petugas dari jadwal hari tertentu.
+     */
     public function scheduleDestroy(int $id)
     {
-        $schedule = DutySchedule::findOrFail($id);
+        $jadwal = DutyWeeklySchedule::with('user')->findOrFail($id);
 
-        $sudahAbsen = DutyAttendance::where('user_id', $schedule->user_id)
-            ->whereDate('duty_date', $schedule->duty_date)
-            ->where('duty_shift_id', $schedule->duty_shift_id)
-            ->whereNotNull('check_in_at')
-            ->exists();
+        $nama = $jadwal->user->name ?? 'Petugas';
+        $hari = $jadwal->dayLabel();
 
-        if ($sudahAbsen) {
-            return back()->withErrors(['jadwal' => 'Petugas sudah absen pada jadwal ini, jadi jadwalnya tidak dapat dihapus.']);
-        }
+        $jadwal->delete();
 
-        $schedule->delete();
-
-        return back()->with('success', 'Jadwal dihapus.');
+        return back()->with('success', 'Jadwal ' . $nama . ' pada hari ' . $hari . ' dihapus.');
     }
 
     public function shiftStore(Request $request)
@@ -213,7 +228,7 @@ class SupervisorDutyController extends Controller
     {
         $shift = DutyShift::findOrFail($id);
 
-        if ($shift->schedules()->exists()) {
+        if ($shift->schedules()->exists() || $shift->weeklySchedules()->exists()) {
             return back()->withErrors(['jadwal' => 'Shift ini sudah dipakai di jadwal. Nonaktifkan saja agar riwayatnya aman.']);
         }
 
@@ -228,7 +243,6 @@ class SupervisorDutyController extends Controller
     {
         $f = $request->validate([
             'q' => ['nullable', 'string', 'max:80'],
-            'wa' => ['nullable', 'in:belum'],
         ]);
 
         $query = User::where('role', 'teller');
@@ -238,9 +252,6 @@ class SupervisorDutyController extends Controller
             $query->where(function ($w) use ($q) {
                 $w->where('name', 'like', "%{$q}%")->orWhere('kelas', 'like', "%{$q}%");
             });
-        }
-        if (($f['wa'] ?? null) === 'belum') {
-            $query->where(fn ($w) => $w->whereNull('no_telp')->orWhere('no_telp', ''));
         }
 
         return $query->orderBy('name');

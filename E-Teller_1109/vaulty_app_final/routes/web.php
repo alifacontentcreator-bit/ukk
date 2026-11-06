@@ -1,4 +1,3 @@
-
 <?php
 
 use Illuminate\Support\Facades\Route;
@@ -16,18 +15,18 @@ use App\Http\Controllers\CustomerPortalController;
 use App\Http\Controllers\TransactionCorrectionController;
 use App\Http\Controllers\AccountingJournalController;
 use App\Http\Controllers\AdminPasswordRecoveryController;
+use App\Http\Controllers\AdminPinResetController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PinResetController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\SupervisorDutyController;
-use App\Http\Controllers\SupervisorPinResetController;
 
 use App\Models\User;
 use App\Models\Transaction;
 use App\Models\Account;
 use App\Models\DailyReport;
 use App\Models\CashTransfer;
-use App\Models\SystemSetting;
+use App\Models\CashRequest;
 
 use App\Services\CashDrawerService;
 
@@ -182,6 +181,12 @@ Route::middleware('auth')->group(function () {
             Route::post('/users', [UserController::class, 'store'])
                 ->name('users.store');
 
+            Route::post('/users/import-siswa', [UserController::class, 'importStudents'])
+                ->name('users.import-siswa');
+
+            Route::get('/users/template-import-siswa', [UserController::class, 'studentImportTemplate'])
+                ->name('users.template-import-siswa');
+
             Route::get('/users/{user}/edit', [UserController::class, 'edit'])
                 ->name('users.edit');
 
@@ -234,6 +239,15 @@ Route::middleware('auth')->group(function () {
 
             Route::post('/pemulihan-sandi/{id}/setujui', [AdminPasswordRecoveryController::class, 'approve'])
                 ->name('pemulihan-sandi.approve');
+
+            Route::get('/reset-pin', [AdminPinResetController::class, 'index'])
+                ->name('reset-pin');
+
+            Route::post('/reset-pin/{id}/approve', [AdminPinResetController::class, 'approve'])
+                ->name('reset-pin.approve');
+
+            Route::post('/reset-pin/{id}/reject', [AdminPinResetController::class, 'reject'])
+                ->name('reset-pin.reject');
 
 
             // Jurnal Akuntansi
@@ -296,19 +310,12 @@ Route::middleware('auth')->group(function () {
                     ->get()
                     ->map(function ($r) {
 
-                        $totalPecahanFisik =
-                            ((float) $r->pecahan_100k * 100000) +
-                            ((float) $r->pecahan_50k * 50000) +
-                            ((float) $r->pecahan_20k * 20000);
-
-                        $r->total_fisik = $totalPecahanFisik;
+                        $r->total_fisik = $r->totalFisik();
 
                         // Kas akhir sistem = kas awal + setoran - penarikan.
-                        $r->total_sistem =
-                            (float) $r->saldo_awal +
-                            (float) $r->expected_cash;
+                        $r->total_sistem = $r->saldoAkhirSistem();
 
-                        $r->selisih = $r->total_fisik - $r->total_sistem;
+                        $r->selisih = $r->selisihKas();
 
                         return $r;
                     });
@@ -332,13 +339,9 @@ Route::middleware('auth')->group(function () {
                     ->orderBy('name')
                     ->get();
 
-                // Saldo awal brankas per tanggal.
-                $vaultInitial = (float) (
-                    SystemSetting::where(
-                        'key',
-                        'vault_initial_balance_' . $tanggal
-                    )->value('value') ?? 0
-                );
+                // Saldo awal brankas: nilai dasar yang berlaku terus-menerus
+                // (tidak disimpan per tanggal dan tidak direset setiap hari).
+                $vaultInitial = $cashService->vaultInitialBalance();
 
                 // Penyerahan modal yang masih menunggu konfirmasi Teller.
                 $openingTransfers = CashTransfer::with('teller')
@@ -362,11 +365,22 @@ Route::middleware('auth')->group(function () {
                     ->latest()
                     ->get();
 
-                // Saldo brankas setelah alokasi modal kepada Teller.
-                $vaultBalance = $cashService->supervisorBalance(
-                    $vaultInitial,
-                    $tanggal
-                );
+                // Permintaan tambah modal dari Teller yang belum diproses.
+                $cashRequests = CashRequest::with('teller')
+                    ->where('status', CashRequest::STATUS_PENDING)
+                    ->latest()
+                    ->get();
+
+                // Saldo brankas saat ini: saldo awal ditambah kas yang masuk
+                // dikurangi modal yang diserahkan. Dihitung kumulatif dari
+                // seluruh pergerakan kas (tidak reset harian dan tidak
+                // terpengaruh filter tanggal tabel laporan).
+                $vaultBalanceHitung = $cashService->supervisorBalance();
+
+                // Uang fisik di brankas tidak mungkin minus. Bila pergerakan modal
+                // melebihi saldo awal, tampilkan Rp 0 dan beri peringatan.
+                $vaultShortage = $vaultBalanceHitung < 0 ? abs($vaultBalanceHitung) : 0.0;
+                $vaultBalance = max(0.0, $vaultBalanceHitung);
 
                 return view('supervisor.rekonsiliasi', compact(
                     'tanggal',
@@ -375,9 +389,11 @@ Route::middleware('auth')->group(function () {
                     'tellers',
                     'vaultInitial',
                     'vaultBalance',
+                    'vaultShortage',
                     'openingTransfers',
                     'confirmedOpening',
-                    'closingTransfers'
+                    'closingTransfers',
+                    'cashRequests'
                 ));
 
             })->name('rekonsiliasi');
@@ -390,6 +406,10 @@ Route::middleware('auth')->group(function () {
             // Penyerahan Modal dari Brankas ke Teller
             Route::post('/kas/serahkan-modal', [ReportController::class, 'createOpeningTransfer'])
                 ->name('kas.serahkan-modal');
+
+            // Memenuhi Permintaan Tambah Modal dari Teller (nominal ditentukan Supervisor)
+            Route::post('/kas/permintaan/{cashRequest}/penuhi', [ReportController::class, 'fulfillOpeningRequest'])
+                ->name('kas.penuhi-modal');
 
             // Konfirmasi Kas Pengembalian dari Teller
             Route::post('/kas/konfirmasi-pengembalian/{transfer}', [ReportController::class, 'confirmClosingTransfer'])
@@ -411,17 +431,6 @@ Route::middleware('auth')->group(function () {
 
             Route::post('/validasi/koreksi/{id}/reject', [SupervisorController::class, 'koreksiReject'])
                 ->name('validasi.koreksi.reject');
-
-
-            // Reset PIN Nasabah
-            Route::get('/reset-pin', [SupervisorPinResetController::class, 'index'])
-                ->name('reset-pin');
-
-            Route::post('/reset-pin/{id}/approve', [SupervisorPinResetController::class, 'approve'])
-                ->name('reset-pin.approve');
-
-            Route::post('/reset-pin/{id}/reject', [SupervisorPinResetController::class, 'reject'])
-                ->name('reset-pin.reject');
 
 
             // Petugas Jaga
@@ -471,6 +480,12 @@ Route::middleware('auth')->group(function () {
 
             Route::post('/laporan/{report}/approve', [ReportController::class, 'approve'])
                 ->name('laporan.approve');
+
+            Route::post('/laporan/{report}/reject', [ReportController::class, 'reject'])
+                ->name('laporan.reject');
+
+            Route::get('/laporan/{report}/cetak', [ReportController::class, 'printDailyReport'])
+                ->name('laporan.cetak-laporan');
 
             Route::post('/laporan/{report}/reopen', [ReportController::class, 'reopen'])
                 ->name('laporan.reopen');
@@ -623,13 +638,20 @@ Route::middleware('auth')->group(function () {
                     ->latest()
                     ->first();
 
+                // Permintaan tambah modal hari ini (untuk status di dashboard).
+                $cashRequest = CashRequest::where('teller_id', auth()->id())
+                    ->whereDate('request_date', $tanggal)
+                    ->latest()
+                    ->first();
+
                 return view('teller.dashboard', compact(
                     'setoran',
                     'penarikan',
                     'uangDiLaci',
                     'openingTransfer',
                     'modalDiterima',
-                    'closingTransfer'
+                    'closingTransfer',
+                    'cashRequest'
                 ));
 
             })->name('dashboard');
@@ -689,6 +711,10 @@ Route::middleware('auth')->group(function () {
             Route::post('/kas/konfirmasi-modal/{transfer}', [ReportController::class, 'confirmOpeningTransfer'])
                 ->name('kas.konfirmasi-modal');
 
+            // Pengajuan Tambah Modal ke Supervisor (nominal ditentukan Supervisor)
+            Route::post('/kas/ajukan-modal', [ReportController::class, 'requestOpeningModal'])
+                ->name('kas.ajukan-modal');
+
 
             // Pengembalian Kas dari Laci Teller ke Brankas
             Route::post('/kas/serahkan-kembali', [ReportController::class, 'createClosingTransfer'])
@@ -705,8 +731,21 @@ Route::middleware('auth')->group(function () {
             Route::post('/laporan/kirim', [ReportController::class, 'sendTeller'])
                 ->name('laporan-harian.kirim');
 
+            Route::post('/laporan/{report}/revisi', [ReportController::class, 'reviseTeller'])
+                ->name('laporan-harian.revisi');
+
             Route::post('/laporan', [ReportController::class, 'storeTeller'])
                 ->name('laporan-harian.store');
+
+
+            // Notifikasi keputusan Supervisor atas laporan harian
+            Route::get('/notifikasi', [ReportController::class, 'notifications'])
+                ->name('notifikasi');
+
+
+            // Cetak rekap laporan harian (penutupan kas)
+            Route::get('/laporan/{report}/cetak', [ReportController::class, 'printDailyReport'])
+                ->name('laporan.cetak');
         });
 
 });

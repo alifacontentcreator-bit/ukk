@@ -7,6 +7,7 @@
             <div class="nav-group">Data Master</div>
             <a class="nav-item {{ request()->routeIs('admin.users*') ? 'active' : '' }}" href="{{ route('admin.users') }}" title="Manajemen Pengguna"><x-icon name="users" /><span>Manajemen Pengguna</span></a>
             <a class="nav-item {{ request()->routeIs('admin.rekening*') ? 'active' : '' }}" href="{{ route('admin.rekening') }}" title="Master Rekening"><x-icon name="card" /><span>Master Rekening</span></a>
+            <a class="nav-item {{ request()->routeIs('admin.reset-pin*') ? 'active' : '' }}" href="{{ route('admin.reset-pin') }}" title="Pengajuan Reset PIN"><x-icon name="key" /><span>Reset PIN</span></a>
             <div class="nav-group">Sistem</div>
             <a class="nav-item {{ request()->routeIs('admin.konfigurasi*') ? 'active' : '' }}" href="{{ route('admin.konfigurasi') }}" title="Konfigurasi Sistem"><x-icon name="sliders" /><span>Konfigurasi Sistem</span></a>
             <a class="nav-item {{ request()->routeIs('admin.audit-log') ? 'active' : '' }}" href="{{ route('admin.audit-log') }}" title="Log &amp; Audit"><x-icon name="shield" /><span>Log &amp; Audit</span></a>

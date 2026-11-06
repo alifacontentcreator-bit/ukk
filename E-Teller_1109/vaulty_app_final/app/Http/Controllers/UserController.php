@@ -5,11 +5,13 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Models\Account;
 use App\Services\AccountNumberGenerator;
+use App\Services\PetugasSheet;
 use Illuminate\Http\Request;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class UserController extends Controller
 {
@@ -51,6 +53,173 @@ class UserController extends Controller
         $users = $query->get();
 
         return view('admin.users.index', compact('users', 'filters'));
+    }
+
+    public function importStudents(Request $request)
+    {
+        $this->authorize('manage', User::class);
+
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:xlsx,xls,csv', 'max:10240'],
+        ]);
+
+        try {
+            $rows = IOFactory::load($request->file('file')->getRealPath())
+                ->getActiveSheet()
+                ->toArray(null, true, true, false);
+        } catch (\Throwable $exception) {
+            return back()->withErrors(['file' => 'File tidak dapat dibaca. Gunakan Excel (.xlsx/.xls) atau CSV yang valid.']);
+        }
+
+        try {
+            [$headerIndex, $columns] = $this->studentImportColumns($rows);
+        } catch (\DomainException $exception) {
+            return back()->withErrors(['file' => $exception->getMessage()]);
+        }
+
+        $result = ['created' => 0, 'skipped' => []];
+        $processed = 0;
+
+        foreach (array_slice($rows, $headerIndex + 1, null, true) as $index => $row) {
+            $name = trim((string) ($row[$columns['name']] ?? ''));
+            $nis = trim((string) ($row[$columns['nis']] ?? ''));
+            $classLabel = $this->normalizeStudentClass((string) ($row[$columns['class']] ?? ''));
+            $email = mb_strtolower(trim((string) ($row[$columns['email']] ?? '')));
+            $phone = isset($columns['phone']) ? trim((string) ($row[$columns['phone']] ?? '')) : null;
+
+            if ($name === '' && $nis === '' && $classLabel === '' && $email === '') {
+                continue;
+            }
+
+            if (++$processed > 500) {
+                $result['skipped'][] = ['row' => $index + 1, 'name' => '-', 'reason' => 'Batas impor 500 siswa per file sudah tercapai.'];
+                break;
+            }
+
+            $skip = function (string $reason) use (&$result, $index, $name): void {
+                $result['skipped'][] = ['row' => $index + 1, 'name' => $name ?: '-', 'reason' => $reason];
+            };
+
+            if ($name === '' || strlen($name) > 255) {
+                $skip('Nama wajib diisi dan maksimal 255 karakter.');
+                continue;
+            }
+            if (!preg_match('/^\d{5}$/', $nis)) {
+                $skip('NIS harus terdiri dari tepat 5 angka.');
+                continue;
+            }
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $skip('Email wajib diisi dengan format yang valid.');
+                continue;
+            }
+
+            try {
+                $classAttrs = AccountNumberGenerator::resolveClassAttributes($classLabel);
+            } catch (\Throwable $exception) {
+                $skip('Format kelas tidak valid. Contoh: XII RPL1.');
+                continue;
+            }
+
+            if (User::where('nis', $nis)->orWhere('username', $nis)->exists()) {
+                $skip('NIS atau username sudah terdaftar.');
+                continue;
+            }
+            if (User::where('email', $email)->exists()) {
+                $skip('Email sudah digunakan akun lain.');
+                continue;
+            }
+
+            try {
+                DB::transaction(function () use ($name, $nis, $email, $phone, $classAttrs): void {
+                    $accountNumber = AccountNumberGenerator::generate(
+                        $classAttrs['jurusan'],
+                        $classAttrs['angkatan'],
+                        $classAttrs['kelas_urut']
+                    );
+
+                    $user = User::create([
+                        'name' => $name,
+                        'username' => $nis,
+                        'password' => Hash::make(Str::random(64)),
+                        'role' => 'customer',
+                        'status' => 'active',
+                        'nis' => $nis,
+                        'kelas' => $classAttrs['kelas'],
+                        'jurusan' => $classAttrs['jurusan'],
+                        'tingkat' => $classAttrs['tingkat'],
+                        'kelas_urut' => $classAttrs['kelas_urut'],
+                        'angkatan' => $classAttrs['angkatan'],
+                        'email' => $email,
+                        'no_telp' => $phone ?: null,
+                    ]);
+
+                    $user->forceFill(['must_change_password' => true])->save();
+
+                    Account::create([
+                        'user_id' => $user->id,
+                        'account_number' => $accountNumber,
+                        'pin' => Hash::make(Str::random(64)),
+                        'pin_is_default' => true,
+                        'balance' => 0,
+                        'product_type' => 'tabungan_siswa',
+                        'qr_token' => Str::random(48),
+                        'status' => 'active',
+                    ]);
+                });
+                $result['created']++;
+            } catch (\Throwable $exception) {
+                report($exception);
+                $skip('Gagal membuat akun atau rekening. Periksa data duplikat lalu coba kembali.');
+            }
+        }
+
+        return redirect()->route('admin.users')
+            ->with('student_import_result', $result)
+            ->with('success', $result['created'] . ' akun siswa dibuat dan menunggu aktivasi.');
+    }
+
+    public function studentImportTemplate(PetugasSheet $sheet)
+    {
+        $this->authorize('manage', User::class);
+
+        return $sheet->download(
+            'template-impor-siswa.xlsx',
+            ['Nama', 'NIS', 'Kelas', 'Email', 'No. Telepon'],
+            [],
+            'Impor Siswa'
+        );
+    }
+
+    private function studentImportColumns(array $rows): array
+    {
+        foreach (array_slice($rows, 0, 10, true) as $index => $row) {
+            $columns = [];
+            foreach ($row as $column => $value) {
+                $header = preg_replace('/[^a-z0-9]/', '', mb_strtolower((string) $value));
+                if ($header === '') continue;
+                if (!isset($columns['name']) && str_starts_with($header, 'nama')) $columns['name'] = $column;
+                elseif (!isset($columns['nis']) && $header === 'nis') $columns['nis'] = $column;
+                elseif (!isset($columns['class']) && str_starts_with($header, 'kelas')) $columns['class'] = $column;
+                elseif (!isset($columns['email']) && str_contains($header, 'email')) $columns['email'] = $column;
+                elseif (!isset($columns['phone']) && (str_contains($header, 'telp') || str_contains($header, 'telepon') || str_contains($header, 'hp'))) $columns['phone'] = $column;
+            }
+
+            if (isset($columns['name'], $columns['nis'], $columns['class'], $columns['email'])) {
+                return [$index, $columns];
+            }
+        }
+
+        throw new \DomainException('Header wajib: Nama, NIS, Kelas, dan Email. Kolom No. Telepon bersifat opsional.');
+    }
+
+    private function normalizeStudentClass(string $class): string
+    {
+        $class = strtoupper(trim($class));
+        if (preg_match('/^(XII|XI|X)\s+([A-Z]+)\s*(\d*)$/', $class, $matches)) {
+            return $matches[1] . ' ' . $matches[2] . $matches[3];
+        }
+
+        return $class;
     }
 
     /**

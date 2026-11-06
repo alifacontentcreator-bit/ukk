@@ -53,14 +53,18 @@ class TellerCashReturnTest extends TestCase
         ]);
     }
 
-    public function test_dashboard_teller_menampilkan_form_pengembalian_kas(): void
+    public function test_dashboard_teller_menampilkan_info_kas_tersedia_di_laci(): void
     {
         $this->modalDiterima();
 
         $this->actingAs($this->teller)
             ->get(route('teller.dashboard'))
             ->assertOk()
-            ->assertSee('Serahkan Kembali Kas');
+            ->assertSee('Kas tersedia di laci')
+            ->assertSee('Rp 1.000.000')
+            // Form pengembalian kas sudah dihapus dari dashboard teller.
+            ->assertDontSee('Jumlah kas dikembalikan')
+            ->assertDontSee('Serahkan Kembali Kas');
     }
 
     public function test_teller_dapat_mengajukan_pengembalian_dan_supervisor_mengonfirmasinya(): void

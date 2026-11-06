@@ -39,9 +39,9 @@
 
             <div class="callout callout-warn">
                 <b>Reset darurat PIN</b>
-                <p style="margin-top:2px">Hanya untuk keadaan darurat; reset normal dilakukan teller dan disetujui supervisor. Tindakan ini tercatat pada log audit dan mewajibkan alasan minimal 10 karakter.</p>
+                <p style="margin-top:2px">Hanya untuk keadaan darurat; reset normal diajukan teller dan disetujui melalui menu Reset PIN. PIN sementara menjadi 123456 dan tindakan tercatat.</p>
                 <form method="POST" action="{{ route('admin.rekening.reset-pin', $account) }}" style="margin-top:8px"
-                      onsubmit="var r = prompt('Alasan reset darurat PIN (wajib, minimal 10 karakter):'); if (!(r && r.trim().length > 9)) { alert('Alasan wajib diisi, minimal 10 karakter.'); return false; } this.reason.value = r.trim(); return confirm('Minta nasabah membuat PIN baru melalui aplikasi? Tindakan ini tercatat.');">
+                      onsubmit="var r = prompt('Alasan reset darurat PIN (wajib, minimal 10 karakter):'); if (!(r && r.trim().length > 9)) { alert('Alasan wajib diisi, minimal 10 karakter.'); return false; } this.reason.value = r.trim(); return confirm('Reset PIN sementara nasabah menjadi 123456? Tindakan ini tercatat.');">
                     @csrf
                     <input type="hidden" name="reason" value="">
                     <button type="submit" class="btn btn-danger btn-sm"><x-icon name="key" /> Reset Darurat PIN</button>

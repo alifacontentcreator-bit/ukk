@@ -9,16 +9,23 @@
 @endsection
 
 @section('content')
+    @php
+        // Batas saldo mengendap & sisa saldo yang boleh ditarik pada rekening ini.
+        $minBalance = (int) ($minBalance ?? 10000);
+        $saldoSaatIni = (float) ($nasabah->balance ?? 0);
+        $maksPenarikan = max(0, $saldoSaatIni - $minBalance);
+    @endphp
+
     @if(session('customer_transaction_approval_id'))
+        {{--
+            Status otorisasi nasabah.
+            Disembunyikan selama masih "menunggu" karena informasinya sudah tampil
+            pada notifikasi di bagian atas halaman. Blok ini hanya muncul saat
+            nasabah menyetujui atau menolak permintaan.
+        --}}
         <div id="customerApprovalStatus"
              data-status-url="{{ route('teller.transaksi.approval-status', session('customer_transaction_approval_id')) }}"
-             class="alert alert-warn" role="status" aria-live="polite">
-            <x-icon name="clock" />
-            <div>
-                <p class="name">Menunggu otorisasi nasabah di aplikasi</p>
-                <p class="sub">Jangan serahkan atau terima uang sebelum nasabah menyetujui transaksi di aplikasi.</p>
-            </div>
-        </div>
+             class="alert alert-warn" role="status" aria-live="polite" hidden></div>
     @endif
 
     @if($account_number && !$nasabah)
@@ -130,10 +137,20 @@
                                        value="{{ old('amount') ? number_format(old('amount'), 0, ',', '.') : '' }}"
                                        inputmode="numeric" autocomplete="off"
                                        style="font-size:15px;font-weight:700;letter-spacing:.02em"
-                                       placeholder="1.000" required>
+                                       placeholder="5.000" required>
                             </div>
                             <input type="hidden" name="amount" id="amount" value="{{ old('amount') }}">
-                            <p class="helper">Minimal transaksi Rp 1.000. Sisa saldo di rekening minimal Rp 10.000.</p>
+                            <p class="helper">
+                                Setoran minimal Rp 5.000. Penarikan wajib menyisakan saldo mengendap
+                                Rp {{ number_format($minBalance, 0, ',', '.') }}.
+                                @if($maksPenarikan > 0)
+                                    Maksimal penarikan untuk rekening ini
+                                    Rp {{ number_format($maksPenarikan, 0, ',', '.') }}.
+                                @elseif($nasabah)
+                                    Saldo rekening Rp {{ number_format($saldoSaatIni, 0, ',', '.') }}
+                                    belum dapat ditarik karena sudah menyentuh batas saldo mengendap.
+                                @endif
+                            </p>
                         </div>
 
                         <div class="callout">
@@ -154,7 +171,7 @@
                     <a class="btn btn-soft btn-sm" href="{{ route('teller.transaksi.create') }}">Batal</a>
                     @if($nasabah)
                         <button type="submit" class="btn btn-primary btn-sm"
-                                onclick="return confirm('Kirim permintaan ke aplikasi nasabah? Transaksi dan perubahan saldo baru dilakukan setelah nasabah memasukkan PIN.')">
+                            onclick="return confirm(document.querySelector('input[name=type]:checked')?.value === 'withdrawal' ? 'Kirim permintaan penarikan ke aplikasi nasabah untuk konfirmasi PIN?' : 'Catat setoran tunai sekarang? Setoran tidak memerlukan PIN nasabah.')">
                             <x-icon name="save" /> Simpan Transaksi
                         </button>
                     @endif
@@ -228,6 +245,23 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (approvalStatus) {
         const statusUrl = approvalStatus.dataset.statusUrl;
+
+        // Notifikasi "permintaan dikirim" tidak relevan lagi setelah status final,
+        // supaya Teller hanya melihat satu notifikasi hasil transaksi.
+        const hapusNotifikasiLama = () => {
+            const stack = document.querySelector('.alert-stack');
+
+            if (!stack) {
+                return;
+            }
+
+            stack.querySelectorAll('.alert-success').forEach((el) => el.remove());
+
+            if (!stack.children.length) {
+                stack.remove();
+            }
+        };
+
         const pollApproval = async () => {
             try {
                 const response = await fetch(statusUrl, {
@@ -238,6 +272,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 if (result.status === 'approved') {
                     approvalStatus.className = 'alert alert-success';
+                    approvalStatus.hidden = false;
+                    hapusNotifikasiLama();
                     approvalStatus.replaceChildren();
                     const title = document.createElement('p');
                     title.className = 't-bold';
@@ -257,6 +293,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 if (result.status !== 'pending') {
                     approvalStatus.className = 'alert alert-danger';
+                    approvalStatus.hidden = false;
+                    hapusNotifikasiLama();
                     approvalStatus.innerHTML = '<p class="t-bold">Permintaan transaksi tidak disetujui atau sudah kedaluwarsa.</p><p class="helper">Tidak ada perubahan saldo. Silakan buat permintaan baru jika diperlukan.</p>';
                     return true;
                 }
@@ -646,6 +684,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
     closeButton.addEventListener('click', closeDialog);
     dialog.addEventListener('close', stopCamera);
+
+    if (new URLSearchParams(window.location.search).get('scan') === '1') {
+        openButton.click();
+    }
 });
 </script>
 @endsection

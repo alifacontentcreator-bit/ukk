@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\DB;
 
 class TransactionController extends Controller
 {
-    public function create(Request $request)
+    public function create(Request $request, TransactionPostingService $posting)
     {
         $account_number = $request->input('account_number');
         $type = $request->input('type', 'deposit');
@@ -30,11 +30,15 @@ class TransactionController extends Controller
             $qrDevice = 'hid';
         }
 
+        // Batas saldo mengendap dipakai untuk menampilkan sisa saldo yang boleh ditarik.
+        $minBalance = $posting->minBalance();
+
         return view('teller.transaksi', compact(
             'nasabah',
             'account_number',
             'type',
-            'qrDevice'
+            'qrDevice',
+            'minBalance'
         ));
     }
 
@@ -93,13 +97,15 @@ class TransactionController extends Controller
             'amount' => [
                 'required',
                 'numeric',
-                'min:1000'
+                $request->input('type') === 'deposit' ? 'min:5000' : 'gt:0',
             ],
             'description' => [
                 'nullable',
                 'string',
                 'max:255'
             ],
+        ], [
+            'amount.min' => 'Minimal setor tunai 5.000.',
         ]);
 
         DB::beginTransaction();
@@ -141,6 +147,52 @@ class TransactionController extends Controller
                 throw new DomainException(
                     'Rekening nasabah sedang tidak aktif atau diblokir. Transaksi ditolak.'
                 );
+            }
+
+            /*
+             * Penarikan tunai: pastikan sisa saldo setelah penarikan masih
+             * memenuhi batas saldo mengendap. Pemeriksaan dilakukan sebelum
+             * permintaan otorisasi PIN dikirim ke nasabah, supaya Teller tidak
+             * meminta PIN untuk transaksi yang pasti ditolak.
+             */
+            if ($request->type === 'withdrawal') {
+                $minBalance = $posting->minBalance();
+                $balance = (float) $account->balance;
+                $amount = (float) $request->amount;
+
+                if (($balance - $amount) < $minBalance) {
+                    $maxWithdrawal = max(0, $balance - $minBalance);
+
+                    throw new DomainException(
+                        'Transaksi gagal. Minimal saldo mengendap Rp ' .
+                        number_format($minBalance, 0, ',', '.') . '. ' .
+                        ($maxWithdrawal > 0
+                            ? 'Maksimal penarikan untuk rekening ini Rp ' .
+                                number_format($maxWithdrawal, 0, ',', '.') . '.'
+                            : 'Saldo nasabah Rp ' . number_format($balance, 0, ',', '.') .
+                                ' tidak dapat ditarik karena sudah menyentuh batas saldo mengendap.')
+                    );
+                }
+            }
+
+            if ($request->type === 'deposit') {
+                $transaction = $posting->post(
+                    $account,
+                    $teller,
+                    'deposit',
+                    (float) $request->amount,
+                    $request->description
+                );
+
+                DB::commit();
+
+                return redirect()
+                    ->route('teller.transaksi.create', [
+                        'account_number' => $account->account_number,
+                        'type' => 'deposit',
+                    ])
+                    ->with('success', 'Setoran berhasil dicatat tanpa PIN nasabah. Ref: ' . $transaction->reference_number)
+                    ->with('posted_transaction_id', $transaction->id);
             }
 
             CustomerTransactionApproval::where('account_id', $account->id)

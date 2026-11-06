@@ -10,7 +10,7 @@ use Illuminate\Http\Request;
 
 /**
  * Sisi TELLER dari alur reset PIN. Teller hanya MENGAJUKAN; PIN baru berubah
- * setelah Supervisor menyetujui (lihat SupervisorPinResetController).
+ * setelah Administrator menyetujui pengajuan.
  */
 class PinResetController extends Controller
 {
@@ -76,7 +76,7 @@ class PinResetController extends Controller
         $nama = Account::find($req->account_id)?->user?->name ?? 'nasabah';
 
         return redirect()->route('teller.reset-pin')
-            ->with('success', "Pengajuan reset PIN untuk {$nama} dikirim ke Supervisor. PIN baru direset setelah disetujui (berlaku " . PinResetService::EXPIRE_HOURS . ' jam).');
+            ->with('success', "Pengajuan reset PIN untuk {$nama} dikirim ke Administrator. PIN direset setelah disetujui (berlaku " . PinResetService::EXPIRE_HOURS . ' jam).');
     }
 
     public function cancel(int $id, PinResetService $resets)

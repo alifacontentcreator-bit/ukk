@@ -26,7 +26,7 @@ class EnsurePinChanged
 
         if ($account && $account->pin_reset_required) {
             return response()->json([
-                'message' => 'PIN terkunci setelah 5 kali salah. Ajukan reset PIN kepada Teller.',
+                'message' => 'PIN terkunci setelah 3 kali salah. Ajukan reset PIN kepada Teller.',
                 'code' => 'PIN_RESET_REQUIRED',
             ], 423);
         }

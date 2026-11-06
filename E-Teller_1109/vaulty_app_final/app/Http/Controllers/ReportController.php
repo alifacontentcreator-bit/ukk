@@ -7,9 +7,11 @@ use Illuminate\Support\Facades\DB;
 
 use App\Models\DailyReportReopenLog;
 use App\Models\DailyReport;
+use App\Models\ReportNotification;
 use App\Models\User;
 use App\Models\Transaction;
 use App\Models\CashTransfer;
+use App\Models\CashRequest;
 use App\Models\SystemSetting;
 
 use App\Services\CashDrawerService;
@@ -32,6 +34,7 @@ class ReportController extends Controller
         $query = DailyReport::with([
             'teller',
             'approver',
+            'rejecter',
             'reopener',
             'reopenLogs',
         ])->whereIn('status', [
@@ -100,14 +103,9 @@ class ReportController extends Controller
                     );
                 }
 
-                $totalPecahanFisik =
-                    ((int) $report->pecahan_100k * 100000) +
-                    ((int) $report->pecahan_50k * 50000) +
-                    ((int) $report->pecahan_20k * 20000);
+                $totalPecahanFisik = $report->totalFisik();
 
-                $totalSistem =
-                    (float) $report->saldo_awal +
-                    (float) $report->expected_cash;
+                $totalSistem = $report->saldoAkhirSistem();
 
                 $selisih = $totalPecahanFisik - $totalSistem;
 
@@ -123,6 +121,18 @@ class ReportController extends Controller
                     'approved_by' => auth()->id(),
                     'approved_at' => now(),
                     'rejected_reason' => null,
+                    'rejected_by' => null,
+                    'rejected_at' => null,
+                ]);
+
+                ReportNotification::create([
+                    'user_id' => $report->teller_id,
+                    'daily_report_id' => $report->id,
+                    'title' => 'Laporan kas harian disetujui',
+                    'message' => 'Laporan kas harian tanggal '
+                        . $this->formatReportDate($report)
+                        . ' telah disetujui Supervisor. Kas fisik dan kas sistem sudah sesuai.',
+                    'type' => 'report_approved',
                 ]);
             });
 
@@ -136,6 +146,91 @@ class ReportController extends Controller
                 'report' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Supervisor menolak laporan Teller, misalnya karena uang fisik di
+     * laci masih minus (selisih) dengan catatan sistem.
+     *
+     * Teller menerima notifikasi berisi alasan penolakan lalu dapat
+     * merevisi laporan hariannya dan mengirim ulang.
+     */
+    public function reject(Request $request, DailyReport $report)
+    {
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'min:5', 'max:500'],
+        ], [
+            'reason.required' => 'Alasan penolakan wajib diisi.',
+            'reason.min' => 'Alasan penolakan minimal 5 karakter.',
+            'reason.max' => 'Alasan penolakan maksimal 500 karakter.',
+        ]);
+
+        try {
+            $selisih = 0.0;
+
+            DB::transaction(function () use ($report, $validated, &$selisih) {
+                $report = DailyReport::whereKey($report->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                if ($report->status !== 'submitted') {
+                    throw new \DomainException(
+                        'Hanya laporan yang menunggu validasi yang dapat ditolak.'
+                    );
+                }
+
+                $totalPecahanFisik = $report->totalFisik();
+
+                $totalSistem = $report->saldoAkhirSistem();
+
+                $selisih = $totalPecahanFisik - $totalSistem;
+
+                $report->update([
+                    'status' => 'rejected',
+                    'rejected_reason' => $validated['reason'],
+                    'rejected_by' => auth()->id(),
+                    'rejected_at' => now(),
+                    'approved_by' => null,
+                    'approved_at' => null,
+                ]);
+
+                ReportNotification::create([
+                    'user_id' => $report->teller_id,
+                    'daily_report_id' => $report->id,
+                    'title' => 'Laporan kas harian ditolak',
+                    'message' => 'Laporan kas harian tanggal '
+                        . $this->formatReportDate($report)
+                        . ' ditolak Supervisor'
+                        . (abs($selisih) >= 0.01
+                            ? ' karena terdapat selisih kas sebesar Rp '
+                                . number_format(abs($selisih), 0, ',', '.')
+                            : '')
+                        . '. Alasan: ' . $validated['reason']
+                        . ' Silakan revisi laporan harian lalu kirim ulang.',
+                    'type' => 'report_rejected',
+                ]);
+            });
+
+            return back()->with(
+                'success',
+                'Laporan ditolak. Teller sudah menerima notifikasi untuk merevisi laporan harian.'
+            );
+
+        } catch (\DomainException $e) {
+            return back()->withErrors([
+                'report' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Format tanggal laporan untuk teks notifikasi.
+     */
+    private function formatReportDate(DailyReport $report): string
+    {
+        return \Carbon\Carbon::parse($report->report_date)
+            ->locale('id')
+            ->translatedFormat('d F Y');
     }
 
     /**
@@ -217,14 +312,13 @@ class ReportController extends Controller
 
         $administrasi = 0;
 
-        $key = 'vault_initial_balance_' . $tanggal;
+        // Saldo awal brankas berlaku terus (tidak per tanggal), sedangkan
+        // saldo akhir dihitung kumulatif sampai tanggal cetak.
+        $cashService = app(CashDrawerService::class);
 
-        $saldoAwalSistem = (float) (
-            SystemSetting::where('key', $key)->value('value') ?? 0
-        );
+        $saldoAwalSistem = $cashService->vaultInitialBalance();
 
-        $saldoAkhirSistem = app(CashDrawerService::class)
-            ->supervisorBalance($saldoAwalSistem, $tanggal);
+        $saldoAkhirSistem = $cashService->supervisorBalance($cashService->vaultBaseline(), $tanggal);
 
         return view('supervisor.laporan-harian-cetak', compact(
             'tanggal',
@@ -236,12 +330,77 @@ class ReportController extends Controller
         ));
     }
 
+    /**
+     * Cetak rekap laporan harian (penutupan kas) satu Teller.
+     *
+     * Dipakai Supervisor (semua laporan) dan Teller (laporan sendiri).
+     * Hasil cetakan berisi rekapitulasi kas, terbilang, rincian lembaran
+     * saldo awal & uang fisik, daftar transaksi, serta kolom tanda tangan.
+     */
+    public function printDailyReport(DailyReport $report)
+    {
+        $user = auth()->user();
+
+        if ($user->role === 'teller' && (int) $report->teller_id !== (int) $user->id) {
+            abort(403, 'Anda tidak berhak mencetak laporan Teller lain.');
+        }
+
+        $report->loadMissing(['teller', 'approver', 'rejecter']);
+
+        $transactions = Transaction::with(['account.user'])
+            ->where('user_id', $report->teller_id)
+            ->whereDate('created_at', \Carbon\Carbon::parse($report->report_date)->toDateString())
+            ->whereIn('status', ['approved', 'success', 'corrected'])
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get();
+
+        $statusLabel = [
+            'draft' => 'Draf',
+            'submitted' => 'Menunggu validasi',
+            'approved' => 'Disetujui',
+            'rejected' => 'Ditolak',
+        ][$report->status] ?? $report->status;
+
+        $catatanVerifikasi = match ($report->status) {
+            'approved' => 'Diverifikasi oleh ' . ($report->approver->name ?? 'Supervisor Bank Mini')
+                . ' pada ' . optional($report->approved_at)->format('d/m/Y H:i')
+                . '. Catatan: ' . ($report->rejected_reason ?: 'Sesuai'),
+            'rejected' => 'Ditolak oleh ' . ($report->rejecter->name ?? 'Supervisor Bank Mini')
+                . ' pada ' . optional($report->rejected_at)->format('d/m/Y H:i')
+                . '. Catatan: ' . ($report->rejected_reason ?: '-'),
+            'submitted' => 'Laporan sudah dikirim dan menunggu verifikasi Supervisor.',
+            default => 'Laporan masih draf dan belum dikirim ke Supervisor.',
+        };
+
+        $terbilang = \App\Support\Terbilang::rupiah($report->totalFisik());
+
+        $backUrl = $user->role === 'teller'
+            ? route('teller.laporan', ['tanggal' => \Carbon\Carbon::parse($report->report_date)->toDateString()])
+            : route('supervisor.laporan');
+
+        return view('reports.laporan-harian-cetak', compact(
+            'report',
+            'transactions',
+            'statusLabel',
+            'catatanVerifikasi',
+            'terbilang',
+            'backUrl'
+        ));
+    }
+
     // ========================================================
     // 2. PENGELOLAAN KAS SUPERVISOR
     // ========================================================
 
     /**
-     * Menetapkan saldo awal brankas untuk hari ini.
+     * Menetapkan / memperbarui saldo awal brankas.
+     *
+     * Nilai ini adalah modal dasar brankas yang berlaku terus-menerus.
+     * Saldo brankas saat ini dihitung dari nilai ini ditambah kas yang
+     * kembali ke brankas lalu dikurangi modal yang diserahkan ke Teller,
+     * sehingga nilainya tetap bisa diperbarui kapan saja (mis. saat
+     * uang fisik di brankas ditambah).
      */
     public function setVaultInitialBalance(Request $request)
     {
@@ -249,38 +408,23 @@ class ReportController extends Controller
             'initial_balance' => ['required', 'numeric', 'min:0'],
         ]);
 
-        $date = today()->toDateString();
-        $key = 'vault_initial_balance_' . $date;
-
         try {
-            DB::transaction(function () use ($validated, $date, $key) {
-                $existingTransfer = CashTransfer::whereDate(
-                    'transfer_date',
-                    $date
-                )->lockForUpdate()->exists();
+            DB::transaction(function () use ($validated) {
+                $cashService = app(CashDrawerService::class);
 
-                if ($existingTransfer) {
-                    throw new \DomainException(
-                        'Saldo awal tidak dapat diubah karena proses kas hari ini sudah dimulai.'
-                    );
-                }
+                SystemSetting::updateOrCreate(
+                    ['key' => CashDrawerService::SETTING_VAULT_INITIAL],
+                    ['value' => (string) $validated['initial_balance']]
+                );
 
-                $setting = SystemSetting::where('key', $key)
-                    ->lockForUpdate()
-                    ->first();
-
-                if (!$setting) {
-                    $setting = new SystemSetting();
-                    $setting->key = $key;
-                }
-
-                $setting->value = $validated['initial_balance'];
-                $setting->save();
+                // Pergerakan kas yang sudah ada dianggap sudah tercermin pada angka
+                // yang diisi, sehingga saldo brankas saat ini = saldo awal ini.
+                $cashService->syncVaultBaseline((float) $validated['initial_balance']);
             });
 
             return back()->with(
                 'success',
-                'Saldo awal brankas hari ini berhasil disimpan.'
+                'Saldo awal brankas berhasil disimpan. Saldo brankas saat ini sama dengan angka tersebut.'
             );
 
         } catch (\DomainException $e) {
@@ -315,7 +459,6 @@ class ReportController extends Controller
         try {
             DB::transaction(function () use ($validated) {
                 $date = today()->toDateString();
-                $key = 'vault_initial_balance_' . $date;
 
                 $teller = User::whereKey($validated['teller_id'])
                     ->where('role', 'teller')
@@ -328,41 +471,40 @@ class ReportController extends Controller
                     );
                 }
 
-                $setting = SystemSetting::where('key', $key)
-                    ->lockForUpdate()
-                    ->first();
+                $cashService = app(CashDrawerService::class);
 
-                if (!$setting) {
+                if (!$cashService->hasVaultInitialBalance()) {
                     throw new \DomainException(
-                        'Supervisor harus menetapkan saldo awal brankas hari ini terlebih dahulu.'
+                        'Supervisor harus menetapkan saldo awal brankas terlebih dahulu.'
                     );
                 }
 
                 $existing = CashTransfer::where('teller_id', $teller->id)
                     ->where('type', 'opening')
                     ->whereDate('transfer_date', $date)
+                    ->where('status', 'pending')
                     ->first();
 
                 if ($existing) {
                     throw new \DomainException(
-                        'Penyerahan modal untuk Teller ini sudah tercatat hari ini.'
+                        'Masih ada modal yang belum dikonfirmasi Teller (' .
+                        'Rp ' . number_format((float) $existing->amount, 0, ',', '.') .
+                        '). Tunggu Teller mengonfirmasi sebelum menyerahkan modal tambahan.'
                     );
                 }
 
-                $cashService = app(CashDrawerService::class);
-
-                $vaultBalance = $cashService->supervisorBalance(
-                    (float) $setting->value,
-                    $date
-                );
+                // Saldo brankas dihitung kumulatif (bukan hanya transaksi hari ini).
+                $vaultBalance = $cashService->supervisorBalance(null, $date);
 
                 if ((float) $validated['amount'] > $vaultBalance) {
                     throw new \DomainException(
-                        'Saldo brankas tidak mencukupi untuk penyerahan modal.'
+                        'Saldo brankas tidak mencukupi untuk penyerahan modal. ' .
+                        'Saldo brankas saat ini Rp ' .
+                        number_format($vaultBalance, 0, ',', '.') . '.'
                     );
                 }
 
-                CashTransfer::create([
+                $transfer = CashTransfer::create([
                     'teller_id' => $teller->id,
                     'type' => 'opening',
                     'transfer_date' => $date,
@@ -371,6 +513,18 @@ class ReportController extends Controller
                     'created_by' => auth()->id(),
                     'description' => $validated['description'] ?? null,
                 ]);
+
+                // Permintaan tambah modal Teller yang masih pending dianggap terpenuhi.
+                CashRequest::where('teller_id', $teller->id)
+                    ->whereDate('request_date', $date)
+                    ->where('status', CashRequest::STATUS_PENDING)
+                    ->update([
+                        'status' => CashRequest::STATUS_FULFILLED,
+                        'cash_transfer_id' => $transfer->id,
+                        'handled_by' => auth()->id(),
+                        'handled_at' => now(),
+                        'updated_at' => now(),
+                    ]);
             });
 
             return back()->with(
@@ -388,6 +542,182 @@ class ReportController extends Controller
 
             return back()->withErrors([
                 'kas' => 'Penyerahan modal gagal dibuat. Periksa data dan struktur tabel.',
+            ]);
+        }
+    }
+
+    /**
+     * Teller mengajukan tambahan modal kepada Supervisor.
+     *
+     * Teller tidak menentukan nominal. Supervisor yang memutuskan jumlah
+     * modal tambahan yang diserahkan dari brankas.
+     */
+    public function requestOpeningModal(Request $request)
+    {
+        $validated = $request->validate([
+            'note' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        try {
+            DB::transaction(function () use ($validated) {
+                $tellerId = (int) auth()->id();
+                $date = today()->toDateString();
+
+                User::whereKey($tellerId)->lockForUpdate()->firstOrFail();
+
+                // Masih ada modal yang belum dikonfirmasi → belum perlu minta lagi.
+                $pendingOpening = CashTransfer::where('teller_id', $tellerId)
+                    ->where('type', 'opening')
+                    ->whereDate('transfer_date', $date)
+                    ->where('status', 'pending')
+                    ->exists();
+
+                if ($pendingOpening) {
+                    throw new \DomainException(
+                        'Masih ada modal yang menunggu konfirmasi Anda. Konfirmasi dahulu melalui dashboard.'
+                    );
+                }
+
+                $pendingRequest = CashRequest::where('teller_id', $tellerId)
+                    ->whereDate('request_date', $date)
+                    ->where('status', CashRequest::STATUS_PENDING)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($pendingRequest) {
+                    throw new \DomainException(
+                        'Permintaan tambah modal hari ini sudah dikirim dan masih menunggu Supervisor.'
+                    );
+                }
+
+                CashRequest::create([
+                    'teller_id' => $tellerId,
+                    'request_date' => $date,
+                    'status' => CashRequest::STATUS_PENDING,
+                    'note' => $validated['note'] ?? null,
+                ]);
+            });
+
+            return back()->with(
+                'success',
+                'Permintaan tambah modal sudah dikirim ke Supervisor. Jumlah modal ditentukan Supervisor.'
+            );
+
+        } catch (\DomainException $e) {
+            return back()->withErrors([
+                'kas' => $e->getMessage(),
+            ]);
+
+        } catch (\Throwable $e) {
+            report($e);
+
+            return back()->withErrors([
+                'kas' => 'Permintaan tambah modal gagal dikirim. Silakan coba lagi.',
+            ]);
+        }
+    }
+
+    /**
+     * Supervisor memenuhi permintaan tambah modal dari Teller.
+     *
+     * Nominal ditentukan Supervisor dan dicatat sebagai penyerahan modal
+     * tambahan (opening) yang wajib dikonfirmasi Teller.
+     */
+    public function fulfillOpeningRequest(Request $request, CashRequest $cashRequest)
+    {
+        $validated = $request->validate([
+            'amount' => ['required', 'numeric', 'min:1'],
+            'description' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        try {
+            DB::transaction(function () use ($validated, $cashRequest) {
+                $date = today()->toDateString();
+
+                $permintaan = CashRequest::whereKey($cashRequest->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                if ($permintaan->status !== CashRequest::STATUS_PENDING) {
+                    throw new \DomainException(
+                        'Permintaan tambah modal ini sudah diproses.'
+                    );
+                }
+
+                $teller = User::whereKey($permintaan->teller_id)
+                    ->where('role', 'teller')
+                    ->lockForUpdate()
+                    ->first();
+
+                if (!$teller) {
+                    throw new \DomainException('Teller pemohon tidak ditemukan.');
+                }
+
+                $cashService = app(CashDrawerService::class);
+
+                if (!$cashService->hasVaultInitialBalance()) {
+                    throw new \DomainException(
+                        'Supervisor harus menetapkan saldo awal brankas terlebih dahulu.'
+                    );
+                }
+
+                $pendingOpening = CashTransfer::where('teller_id', $teller->id)
+                    ->where('type', 'opening')
+                    ->whereDate('transfer_date', $date)
+                    ->where('status', 'pending')
+                    ->first();
+
+                if ($pendingOpening) {
+                    throw new \DomainException(
+                        'Teller masih memiliki modal yang belum dikonfirmasi (Rp ' .
+                        number_format((float) $pendingOpening->amount, 0, ',', '.') . ').'
+                    );
+                }
+
+                $vaultBalance = $cashService->supervisorBalance(null, $date);
+
+                if ((float) $validated['amount'] > $vaultBalance) {
+                    throw new \DomainException(
+                        'Saldo brankas tidak mencukupi untuk penambahan modal. ' .
+                        'Saldo brankas saat ini Rp ' .
+                        number_format($vaultBalance, 0, ',', '.') . '.'
+                    );
+                }
+
+                $transfer = CashTransfer::create([
+                    'teller_id' => $teller->id,
+                    'type' => 'opening',
+                    'transfer_date' => $date,
+                    'amount' => $validated['amount'],
+                    'status' => 'pending',
+                    'created_by' => auth()->id(),
+                    'description' => $validated['description']
+                        ?? 'Tambahan modal atas permintaan Teller',
+                ]);
+
+                $permintaan->update([
+                    'status' => CashRequest::STATUS_FULFILLED,
+                    'cash_transfer_id' => $transfer->id,
+                    'handled_by' => auth()->id(),
+                    'handled_at' => now(),
+                ]);
+            });
+
+            return back()->with(
+                'success',
+                'Tambahan modal dicatat. Teller harus mengonfirmasi penerimaan modal tambahan.'
+            );
+
+        } catch (\DomainException $e) {
+            return back()->withErrors([
+                'kas' => $e->getMessage(),
+            ]);
+
+        } catch (\Throwable $e) {
+            report($e);
+
+            return back()->withErrors([
+                'kas' => 'Permintaan tambah modal gagal diproses. Periksa data dan struktur tabel.',
             ]);
         }
     }
@@ -638,6 +968,43 @@ class ReportController extends Controller
                     );
                 }
 
+                $reportDate = \Carbon\Carbon::parse($report->report_date)->toDateString();
+
+                /*
+                 * Kas fisik laporan (modal tersisa + setoran - penarikan) yang
+                 * benar-benar pindah dari laci Teller ke brankas. Pencatatan ini
+                 * membuat saldo brankas bertambah setelah laporan disetujui.
+                 *
+                 * Kas yang sudah dikembalikan Teller pada tanggal yang sama
+                 * dikurangkan agar tidak terhitung dua kali.
+                 */
+                $kasFisik = round((float) $report->totalFisik(), 2);
+
+                $sudahKembali = (float) CashTransfer::where('teller_id', $report->teller_id)
+                    ->where('type', 'closing')
+                    ->where('status', 'confirmed')
+                    ->whereDate('transfer_date', $reportDate)
+                    ->sum('amount');
+
+                $kasMasuk = max(0.0, round($kasFisik - $sudahKembali, 2));
+
+                if ($kasMasuk > 0) {
+                    CashTransfer::create([
+                        'teller_id' => $report->teller_id,
+                        'daily_report_id' => $report->id,
+                        'type' => 'closing',
+                        'transfer_date' => $reportDate,
+                        'amount' => $kasMasuk,
+                        'status' => 'confirmed',
+                        'created_by' => auth()->id(),
+                        'confirmed_by' => auth()->id(),
+                        'confirmed_at' => now(),
+                        'description' => 'Kas laporan harian '
+                            . $this->formatReportDate($report)
+                            . ' masuk ke brankas',
+                    ]);
+                }
+
                 $report->update([
                     'transfer_status' => 'approved',
                     'transferred_by' => auth()->id(),
@@ -647,7 +1014,7 @@ class ReportController extends Controller
 
             return back()->with(
                 'success',
-                'Kas laporan sudah tercatat masuk ke brankas.'
+                'Kas laporan sudah tercatat masuk ke brankas dan menambah saldo brankas.'
             );
 
         } catch (\DomainException $e) {
@@ -674,10 +1041,19 @@ class ReportController extends Controller
     public function tellerIndex(Request $request)
     {
         $validated = $request->validate([
-            'tanggal' => ['nullable', 'date'],
+            'tanggal' => ['nullable', 'date_format:Y-m-d'],
         ]);
 
-        $tanggal = $validated['tanggal'] ?? today()->toDateString();
+        $today = today()->toDateString();
+        $requestedDate = $validated['tanggal'] ?? $today;
+
+        // Laporan yang masih bisa diperbaiki Teller: draf dan laporan
+        // yang ditolak Supervisor (harus direvisi lalu dikirim ulang).
+        $hasOpenReport = DailyReport::where('teller_id', auth()->id())
+            ->whereDate('report_date', $requestedDate)
+            ->whereIn('status', ['draft', 'rejected'])
+            ->exists();
+        $tanggal = $requestedDate === $today || $hasOpenReport ? $requestedDate : $today;
         $tellerName = auth()->user()->name;
 
         $tx = Transaction::with('account.user')
@@ -698,13 +1074,8 @@ class ReportController extends Controller
 
         $administrasi = 0;
 
-        $modalHariIni = CashTransfer::where('teller_id', auth()->id())
-            ->whereDate('transfer_date', $tanggal)
-            ->where('type', 'opening')
-            ->where('status', 'confirmed')
-            ->value('amount');
-
-        $saldoAwalSistem = (float) ($modalHariIni ?? 0);
+        // Total modal yang diterima hari itu (bisa lebih dari satu penyerahan).
+        $saldoAwalSistem = $this->confirmedOpeningTotal(null, $tanggal);
 
         // Kas yang sudah dikembalikan Teller ke brankas hari ini.
         $pengembalian = (float) CashTransfer::where('teller_id', auth()->id())
@@ -725,16 +1096,23 @@ class ReportController extends Controller
             ->latest()
             ->get();
 
+        // Draf dan laporan yang ditolak masih dapat diperbaiki Teller.
+        $editableReports = $reports->whereIn('status', ['draft', 'rejected']);
+
+        $unreadReportCount = ReportNotification::unreadCountFor((int) auth()->id());
+
         $summary = [
             'deposit_total' => $setoran,
             'withdrawal_total' => $penarikan,
-            'transaction_count' => (clone $tx)->count(),
+            'transaction_count' => (clone $tx)->whereIn('status', ['approved', 'success', 'corrected'])->count(),
         ];
 
         return view('teller.laporan-harian', compact(
             'reportHariIni',
             'transactions',
             'reports',
+            'editableReports',
+            'unreadReportCount',
             'summary',
             'tanggal',
             'tellerName',
@@ -748,14 +1126,107 @@ class ReportController extends Controller
     }
 
     /**
+     * Halaman notifikasi Teller.
+     *
+     * Berisi keputusan Supervisor atas laporan kas harian yang sudah
+     * dikirim: disetujui atau ditolak beserta alasannya.
+     */
+    public function notifications()
+    {
+        $unreadIds = ReportNotification::where('user_id', auth()->id())
+            ->whereNull('read_at')
+            ->pluck('id');
+
+        $notifications = ReportNotification::with('dailyReport')
+            ->where('user_id', auth()->id())
+            ->latest()
+            ->paginate(15);
+
+        // Notifikasi dianggap terbaca setelah halaman ini dibuka,
+        // sehingga angka pada ikon lonceng kembali ke nol.
+        ReportNotification::whereIn('id', $unreadIds)
+            ->update(['read_at' => now()]);
+
+        return view('teller.notifikasi', compact('notifications', 'unreadIds'));
+    }
+
+    /**
+     * Teller merevisi laporan harian yang ditolak Supervisor.
+     *
+     * Laporan dikembalikan ke status draf agar Teller dapat menghitung
+     * ulang uang fisik kas akhir lalu mengirim laporan kembali sampai
+     * tidak ada selisih (dapat disetujui Supervisor).
+     */
+    public function reviseTeller(DailyReport $report)
+    {
+        $tanggal = null;
+
+        try {
+            DB::transaction(function () use ($report, &$tanggal) {
+                $report = DailyReport::whereKey($report->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                if ((int) $report->teller_id !== (int) auth()->id()) {
+                    throw new \DomainException(
+                        'Kamu tidak memiliki akses untuk merevisi laporan Teller lain.'
+                    );
+                }
+
+                if ($report->status !== 'rejected') {
+                    throw new \DomainException(
+                        'Hanya laporan yang ditolak Supervisor yang dapat direvisi.'
+                    );
+                }
+
+                $tanggal = \Carbon\Carbon::parse($report->report_date)->toDateString();
+
+                // Rekap transaksi dihitung ulang agar angka terbaru
+                // langsung terlihat saat Teller memperbaiki laporan.
+                $data = $this->reportData($tanggal);
+
+                // Modal bisa bertambah setelah draft dibuat; segarkan saldo awal
+                // agar laporan memakai total modal terbaru.
+                $modalTerbaru = $this->confirmedOpeningTotal((int) auth()->id(), $tanggal);
+
+                if ($modalTerbaru > 0) {
+                    $data['saldo_awal'] = $modalTerbaru;
+                }
+
+                $report->update(array_merge($data, [
+                    'status' => 'draft',
+                    'rejected_reason' => null,
+                    'rejected_by' => null,
+                    'rejected_at' => null,
+                    'approved_by' => null,
+                    'approved_at' => null,
+                ]));
+            });
+
+            return redirect()
+                ->route('teller.laporan', ['tanggal' => $tanggal])
+                ->with(
+                    'success',
+                    'Laporan dibuka untuk direvisi. Periksa kembali uang fisik kas akhir lalu kirim ulang ke Supervisor.'
+                );
+
+        } catch (\DomainException $e) {
+            return back()->withErrors([
+                'report' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
      * Menghitung mutasi transaksi harian Teller.
      * Nilai expected_cash adalah setoran dikurangi penarikan dan
      * pengembalian kas ke brankas, belum termasuk saldo awal modal Teller.
      */
-    private function reportData(): array
+    private function reportData(?string $date = null): array
     {
+        $date ??= today()->toDateString();
         $tx = Transaction::where('user_id', auth()->id())
-            ->whereDate('created_at', today());
+            ->whereDate('created_at', $date);
 
         $deposit = (clone $tx)
             ->where('type', 'deposit')
@@ -769,7 +1240,7 @@ class ReportController extends Controller
 
         // Kas yang sudah dikembalikan Teller ke brankas pada hari ini.
         $closing = CashTransfer::where('teller_id', auth()->id())
-            ->whereDate('transfer_date', today())
+            ->whereDate('transfer_date', $date)
             ->where('type', 'closing')
             ->where('status', 'confirmed')
             ->sum('amount');
@@ -777,9 +1248,26 @@ class ReportController extends Controller
         return [
             'deposit_total' => $deposit,
             'withdrawal_total' => $withdrawal,
-            'transaction_count' => (clone $tx)->count(),
+            'transaction_count' => (clone $tx)->whereIn('status', ['approved', 'success', 'corrected'])->count(),
             'expected_cash' => $deposit - $withdrawal - $closing,
         ];
+    }
+
+    /**
+     * Total modal yang sudah dikonfirmasi Teller pada satu tanggal.
+     *
+     * Dijumlahkan karena modal bisa diserahkan beberapa kali dalam sehari
+     * (modal awal + tambahan modal ketika kas laci menipis).
+     */
+    private function confirmedOpeningTotal(?int $tellerId = null, ?string $date = null): float
+    {
+        $date ??= today()->toDateString();
+
+        return (float) CashTransfer::where('teller_id', $tellerId ?? auth()->id())
+            ->whereDate('transfer_date', $date)
+            ->where('type', 'opening')
+            ->where('status', 'confirmed')
+            ->sum('amount');
     }
 
     /**
@@ -807,13 +1295,9 @@ class ReportController extends Controller
                     );
                 }
 
-                $modalHariIni = CashTransfer::where('teller_id', $tellerId)
-                    ->whereDate('transfer_date', $date)
-                    ->where('type', 'opening')
-                    ->where('status', 'confirmed')
-                    ->value('amount');
+                $modalHariIni = $this->confirmedOpeningTotal($tellerId, $date);
 
-                if ($modalHariIni === null) {
+                if ($modalHariIni <= 0) {
                     throw new \DomainException(
                         'Modal hari ini belum dikonfirmasi oleh Teller.'
                     );
@@ -853,9 +1337,15 @@ class ReportController extends Controller
     public function sendTeller(Request $request)
     {
         $validated = $request->validate([
+            'tanggal' => ['nullable', 'date_format:Y-m-d'],
             'pecahan_100k' => ['required', 'integer', 'min:0'],
             'pecahan_50k' => ['required', 'integer', 'min:0'],
             'pecahan_20k' => ['required', 'integer', 'min:0'],
+            'pecahan_5k' => ['nullable', 'integer', 'min:0'],
+            'pecahan_awal_100k' => ['nullable', 'integer', 'min:0'],
+            'pecahan_awal_50k' => ['nullable', 'integer', 'min:0'],
+            'pecahan_awal_20k' => ['nullable', 'integer', 'min:0'],
+            'pecahan_awal_5k' => ['nullable', 'integer', 'min:0'],
         ], [
             'pecahan_100k.required' => 'Jumlah uang pecahan Rp100.000 wajib diisi.',
             'pecahan_50k.required' => 'Jumlah uang pecahan Rp50.000 wajib diisi.',
@@ -865,7 +1355,7 @@ class ReportController extends Controller
         try {
             DB::transaction(function () use ($validated) {
                 $tellerId = auth()->id();
-                $date = today()->toDateString();
+                $date = $validated['tanggal'] ?? today()->toDateString();
 
                 User::whereKey($tellerId)
                     ->lockForUpdate()
@@ -888,13 +1378,9 @@ class ReportController extends Controller
                     );
                 }
 
-                $modalHariIni = CashTransfer::where('teller_id', $tellerId)
-                    ->whereDate('transfer_date', $date)
-                    ->where('type', 'opening')
-                    ->where('status', 'confirmed')
-                    ->value('amount');
+                $modalHariIni = $this->confirmedOpeningTotal($tellerId, $date);
 
-                if ($modalHariIni === null) {
+                if ($modalHariIni <= 0) {
                     throw new \DomainException(
                         'Modal hari ini belum dikonfirmasi.'
                     );
@@ -911,13 +1397,40 @@ class ReportController extends Controller
                     );
                 }
 
-                $data = $this->reportData();
+                $data = $this->reportData($date);
 
-                $report->update(array_merge($data, [
+                // Rincian lembaran saldo awal bersifat opsional. Bila Teller
+                // menghitungnya, jumlahnya harus sama dengan modal yang diterima
+                // agar rekap cetak tidak memuat angka yang bertentangan.
+                $rincianAwal = [
+                    'pecahan_awal_100k' => (int) ($validated['pecahan_awal_100k'] ?? 0),
+                    'pecahan_awal_50k' => (int) ($validated['pecahan_awal_50k'] ?? 0),
+                    'pecahan_awal_20k' => (int) ($validated['pecahan_awal_20k'] ?? 0),
+                    'pecahan_awal_5k' => (int) ($validated['pecahan_awal_5k'] ?? 0),
+                ];
+
+                $totalRincianAwal =
+                    ($rincianAwal['pecahan_awal_100k'] * 100000) +
+                    ($rincianAwal['pecahan_awal_50k'] * 50000) +
+                    ($rincianAwal['pecahan_awal_20k'] * 20000) +
+                    ($rincianAwal['pecahan_awal_5k'] * 5000);
+
+                if ($totalRincianAwal > 0 && $totalRincianAwal !== (int) $modalHariIni) {
+                    throw new \DomainException(
+                        'Rincian lembaran saldo awal (Rp '
+                        . number_format($totalRincianAwal, 0, ',', '.')
+                        . ') tidak sama dengan modal yang diterima (Rp '
+                        . number_format((float) $modalHariIni, 0, ',', '.')
+                        . '). Perbaiki rincian atau kosongkan kolomnya.'
+                    );
+                }
+
+                $report->update(array_merge($data, $rincianAwal, [
                     'saldo_awal' => $modalHariIni,
                     'pecahan_100k' => $validated['pecahan_100k'],
                     'pecahan_50k' => $validated['pecahan_50k'],
                     'pecahan_20k' => $validated['pecahan_20k'],
+                    'pecahan_5k' => (int) ($validated['pecahan_5k'] ?? 0),
                     'status' => 'submitted',
                     'submitted_at' => now(),
                 ]));

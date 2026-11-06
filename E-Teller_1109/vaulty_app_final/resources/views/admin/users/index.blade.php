@@ -42,6 +42,38 @@
     <section class="card section">
         <div class="section-head">
             <div>
+                <div class="section-title">Impor siswa baru</div>
+                <div class="section-sub">Akun yang dibuat menunggu aktivasi dan riwayatnya tetap tersimpan saat siswa dinonaktifkan.</div>
+            </div>
+            <a class="btn btn-soft btn-sm" href="{{ route('admin.users.template-import-siswa') }}"><x-icon name="download" /> Template Excel</a>
+        </div>
+        <form method="POST" action="{{ route('admin.users.import-siswa') }}" enctype="multipart/form-data" class="toolbar">
+            @csrf
+            <div class="field" style="flex:1 1 280px;max-width:none">
+                <label for="studentImportFile">File Excel atau CSV</label>
+                <input id="studentImportFile" type="file" name="file" accept=".xlsx,.xls,.csv" required>
+                @error('file')<p class="form-error">{{ $message }}</p>@enderror
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm"><x-icon name="upload" /> Impor siswa</button>
+        </form>
+        @if(session('student_import_result'))
+            @php($importResult = session('student_import_result'))
+            <div class="card-body">
+                <p class="helper">Berhasil dibuat: {{ $importResult['created'] }}. Dilewati: {{ count($importResult['skipped']) }}.</p>
+                @if($importResult['skipped'])
+                    <ul class="helper">
+                        @foreach($importResult['skipped'] as $skipped)
+                            <li>Baris {{ $skipped['row'] }} ({{ $skipped['name'] }}): {{ $skipped['reason'] }}</li>
+                        @endforeach
+                    </ul>
+                @endif
+            </div>
+        @endif
+    </section>
+
+    <section class="card section">
+        <div class="section-head">
+            <div>
                 <div class="section-title">Daftar Pengguna</div>
                 <div class="section-sub">{{ $users->count() }} akun &middot; admin, supervisor, teller, dan nasabah</div>
             </div>

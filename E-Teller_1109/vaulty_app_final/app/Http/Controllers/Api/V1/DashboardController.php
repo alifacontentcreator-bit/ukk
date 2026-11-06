@@ -28,12 +28,17 @@ class DashboardController extends Controller
         // Aggregated transaction data
         $totalIncome = Transaction::where('account_id', $account->id)
             ->where('type', 'deposit')
+            ->whereIn('status', ['approved', 'success', 'corrected'])
             ->sum('amount');
         $totalExpense = Transaction::where('account_id', $account->id)
-            ->where('type', 'withdraw')
+            ->where('type', 'withdrawal')
+            ->whereIn('status', ['approved', 'success', 'corrected'])
             ->sum('amount');
-        $transactionCount = Transaction::where('account_id', $account->id)->count();
+        $transactionCount = Transaction::where('account_id', $account->id)
+            ->whereIn('status', ['approved', 'success', 'corrected'])
+            ->count();
         $recentTransactions = Transaction::where('account_id', $account->id)
+            ->whereIn('status', ['approved', 'success', 'corrected'])
             ->orderByDesc('created_at')
             ->limit(5)
             ->get(['id', 'reference_number', 'type', 'amount', 'created_at', 'description', 'status']);

@@ -2,7 +2,7 @@
 
 @section('title', 'Reset PIN Nasabah')
 @section('page-title', 'Reset PIN Nasabah')
-@section('page-subtitle', 'Ajukan reset PIN setelah identitas nasabah diperiksa langsung. PIN baru direset setelah disetujui Supervisor.')
+@section('page-subtitle', 'Ajukan reset PIN setelah identitas nasabah diperiksa langsung. Admin akan menyetujui dan mereset PIN sementara menjadi 123456.')
 
 @section('content')
 <div class="split-aside">
@@ -19,7 +19,7 @@
             </div>
             <div class="field"><label for="rReason">Alasan reset PIN</label><textarea id="rReason" name="reason" rows="3" required placeholder="Contoh: Nasabah lupa PIN setelah lama tidak bertransaksi">{{ old('reason') }}</textarea><span class="sub">Minimal 10 karakter.</span></div>
             <label style="display:flex;gap:8px;align-items:flex-start;font-weight:500;font-size:11.5px"><input type="checkbox" name="identity_checked" value="1" style="width:auto;height:auto;margin-top:2px" @checked(old('identity_checked')) required><span>Saya sudah mencocokkan wajah dan identitas nasabah dengan dokumen yang dipilih.</span></label>
-            <button type="submit" class="btn btn-primary" onclick="return confirm('Kirim pengajuan reset PIN ini ke Supervisor?')">Ajukan ke Supervisor</button>
+            <button type="submit" class="btn btn-primary" onclick="return confirm('Kirim pengajuan reset PIN ini ke Admin?')">Ajukan ke Admin</button>
         </form>
     </section>
 

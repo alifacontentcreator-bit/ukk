@@ -102,7 +102,7 @@ class CustomerTransactionApprovalTest extends TestCase
     {
         [$customer, $accountId] = $this->createCustomer();
         $tellerId = $this->createUser('teller', 'teller001');
-        $approval = $this->createApproval($accountId, $tellerId);
+        $approval = $this->createApproval($accountId, $tellerId, 'withdrawal');
 
         $this->actingAs($customer, 'sanctum')
             ->postJson("/api/v1/transactions/pending-approval/{$approval->id}/reject")
@@ -160,11 +160,11 @@ class CustomerTransactionApprovalTest extends TestCase
         );
     }
 
-    public function test_fifth_wrong_pin_requires_a_reset_and_rejects_the_pending_request(): void
+    public function test_third_wrong_pin_requires_a_reset_and_rejects_the_pending_request(): void
     {
         [$customer, $accountId] = $this->createCustomer();
         $tellerId = $this->createUser('teller', 'teller002');
-        $approval = $this->createApproval($accountId, $tellerId);
+        $approval = $this->createApproval($accountId, $tellerId, 'withdrawal');
 
         for ($attempt = 1; $attempt < PinService::MAX_ATTEMPTS; $attempt++) {
             $this->actingAs($customer, 'sanctum')
@@ -198,7 +198,7 @@ class CustomerTransactionApprovalTest extends TestCase
     {
         [$customer, $accountId] = $this->createCustomer();
         $tellerId = $this->createUser('teller', 'teller003');
-        $approval = $this->createApproval($accountId, $tellerId);
+        $approval = $this->createApproval($accountId, $tellerId, 'withdrawal');
 
         $this->mock(TransactionPostingService::class, function (MockInterface $mock): void {
             $mock->shouldReceive('post')
@@ -269,6 +269,34 @@ class CustomerTransactionApprovalTest extends TestCase
         ]);
     }
 
+    public function test_customer_can_approve_a_deposit_without_entering_a_pin(): void
+    {
+        [$customer, $accountId] = $this->createCustomer();
+        $tellerId = $this->createUser('teller', 'teller005');
+        $approval = $this->createApproval($accountId, $tellerId, 'deposit', 5000);
+
+        $this->mock(TransactionPostingService::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('post')
+                ->once()
+                ->andReturnUsing(function (Account $account, User $teller, string $type, float $amount): Transaction {
+                    $account->balance += $amount;
+                    $account->save();
+                    $transaction = new Transaction();
+                    $transaction->id = 78;
+                    $transaction->reference_number = 'REFDEPOSIT';
+
+                    return $transaction;
+                });
+        });
+
+        $this->actingAs($customer, 'sanctum')
+            ->postJson("/api/v1/transactions/pending-approval/{$approval->id}/authorize")
+            ->assertOk()
+            ->assertJsonPath('code', 'TRANSACTION_APPROVED');
+
+        $this->assertDatabaseHas('accounts', ['id' => $accountId, 'balance' => 105000]);
+    }
+
     private function createCustomer(): array
     {
         $userId = $this->createUser('customer', 'customer001');
@@ -302,13 +330,13 @@ class CustomerTransactionApprovalTest extends TestCase
         ]);
     }
 
-    private function createApproval(int $accountId, int $tellerId): CustomerTransactionApproval
+    private function createApproval(int $accountId, int $tellerId, string $type = 'deposit', int $amount = 10000): CustomerTransactionApproval
     {
         $id = DB::table('customer_transaction_approvals')->insertGetId([
             'account_id' => $accountId,
             'teller_id' => $tellerId,
-            'type' => 'deposit',
-            'amount' => 10000,
+            'type' => $type,
+            'amount' => $amount,
             'description' => 'Uji transaksi',
             'status' => 'pending',
             'expires_at' => now()->addMinutes(5),

@@ -12,6 +12,8 @@ class DutyShift extends Model
 
     public function schedules() { return $this->hasMany(DutySchedule::class); }
 
+    public function weeklySchedules() { return $this->hasMany(DutyWeeklySchedule::class); }
+
     /** Contoh: "Shift 1 (07:00-09:30)". */
     public function label(): string
     {

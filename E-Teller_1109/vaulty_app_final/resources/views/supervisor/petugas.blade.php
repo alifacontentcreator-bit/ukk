@@ -12,10 +12,7 @@
     <section class="card">
         <div class="section-head"><div><h2 class="section-title">Daftar Petugas</h2><p class="section-sub">{{ $petugas->total() }} teller &middot; {{ $tanpaWa }} belum punya nomor WA.</p></div></div>
         <form method="GET" action="{{ route('supervisor.petugas') }}" class="toolbar" data-auto-filter style="border-bottom:1px solid var(--line-2)">
-            <div class="field" style="grid-column:span 2"><label for="pQ">Cari</label><input id="pQ" type="search" name="q" value="{{ request('q') }}" placeholder="Nama atau kelas"></div>
-            <div class="field"><label for="pWa">Nomor WA</label>
-                <select id="pWa" name="wa"><option value="">Semua</option><option value="belum" @selected(request('wa') === 'belum')>Belum ada</option></select>
-            </div>
+            <div class="field" style="flex:1 1 220px;max-width:none"><label for="pQ">Cari</label><input id="pQ" type="search" name="q" value="{{ request('q') }}" placeholder="Nama atau kelas"></div>
         </form>
         <div class="table-wrap">
             <table class="table">

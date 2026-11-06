@@ -68,11 +68,11 @@ class TransactionPostingService
             throw new DomainException('Jenis transaksi tidak valid.');
         }
 
-        // Validasi nominal transaksi.
-        if (!is_finite($amount) || $amount < 1000) {
-            throw new DomainException(
-                'Nominal transaksi minimal Rp 1.000.'
-            );
+        // Setoran minimal Rp5.000; penarikan tidak memiliki batas minimum.
+        if (!is_finite($amount) || $amount <= 0 || ($type === 'deposit' && $amount < 5000)) {
+            throw new DomainException($type === 'deposit'
+                ? 'Nominal setoran minimal Rp 5.000.'
+                : 'Nominal penarikan harus lebih besar dari Rp 0.');
         }
 
         $amount = round($amount, 2);

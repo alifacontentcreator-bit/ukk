@@ -94,23 +94,16 @@
 
         <?php
             /*
-             * Total fisik hanya berasal dari seluruh pecahan
-             * uang yang dihitung Teller.
+             * Total fisik hanya berasal dari seluruh pecahan uang yang
+             * dihitung Teller (Rp100.000, Rp50.000, Rp20.000, Rp5.000).
              *
-             * Saldo awal tidak ditambahkan lagi karena
-             * pecahan sudah menghitung seluruh uang di laci.
+             * Saldo awal tidak ditambahkan lagi karena pecahan sudah
+             * menghitung seluruh uang di laci.
              */
 
-            $totalFisik =
-                ((int) $report->pecahan_100k * 100000) +
-                ((int) $report->pecahan_50k * 50000) +
-                ((int) $report->pecahan_20k * 20000);
-
-            $totalSistem =
-                (float) $report->saldo_awal +
-                (float) $report->expected_cash;
-
-            $selisih = $totalFisik - $totalSistem;
+            $totalFisik = $report->totalFisik();
+            $totalSistem = $report->saldoAkhirSistem();
+            $selisih = $report->selisihKas();
 
             $klop = abs($selisih) < 0.01;
         ?>
@@ -232,6 +225,21 @@
                         </b>
                     </div>
 
+                    <div class="kv-row">
+                        <span>Uang Rp5.000</span>
+                        <b>
+                            <?php echo e($report->pecahan_5k); ?> lembar
+                        </b>
+                    </div>
+
+                    <div class="kv-row">
+                        <span>Nilai pecahan Rp5.000</span>
+                        <b>
+                            <?php echo e($rp($report->pecahan_5k * 5000)); ?>
+
+                        </b>
+                    </div>
+
                     <div class="kv-row kv-total">
                         <span>Total uang fisik</span>
                         <b><?php echo e($rp($totalFisik)); ?></b>
@@ -239,6 +247,23 @@
                 </div>
 
             </div>
+
+            
+            <?php if($report->status === 'rejected' && $report->rejected_reason): ?>
+                <div style="border-top:1px solid var(--line-2);padding:12px 16px">
+                    <strong class="is-bad">Laporan ditolak Supervisor</strong>
+                    <p class="sub" style="margin:4px 0 0"><?php echo e($report->rejected_reason); ?></p>
+                    <p class="sub" style="margin:2px 0 0;color:var(--faint)">
+                        Ditolak
+                        <?php echo e($report->rejected_at
+                            ? \Carbon\Carbon::parse($report->rejected_at)->format('d/m/Y H:i')
+                            : '-'); ?>
+
+                        oleh <?php echo e($report->rejecter->name ?? 'Supervisor'); ?>
+
+                    </p>
+                </div>
+            <?php endif; ?>
 
             
             <div class="report-foot">
@@ -264,7 +289,14 @@
                 </div>
 
                 
-                <div class="actions">
+                <div class="actions" style="gap:8px;flex-wrap:wrap">
+
+                    <a class="btn btn-soft"
+                       href="<?php echo e(route('supervisor.laporan.cetak-laporan', $report->id)); ?>"
+                       target="_blank"
+                       rel="noopener">
+                        Cetak rekap
+                    </a>
 
                     <?php if($report->status === 'submitted'): ?>
 
@@ -281,6 +313,13 @@
                                 Setujui laporan
                             </button>
                         </form>
+
+                        <button type="button"
+                                class="btn btn-danger"
+                                data-reject="<?php echo e(route('supervisor.laporan.reject', $report->id)); ?>"
+                                data-reject-title="Tolak laporan <?php echo e($report->teller->name ?? 'Teller'); ?> tanggal <?php echo e(\Carbon\Carbon::parse($report->report_date)->format('d/m/Y')); ?>">
+                            Tolak laporan
+                        </button>
 
                     <?php elseif($report->status === 'approved'
                         && $report->transfer_status === 'pending'): ?>
@@ -420,6 +459,28 @@
 <?php unset($__componentOriginal1667981b6c071c5a4f4cc9ecb2627444); ?>
 <?php endif; ?>
     </div>
+<?php endif; ?>
+
+
+<?php if (isset($component)) { $__componentOriginala5652acfc2cfff008a27b82b90f7e53f = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginala5652acfc2cfff008a27b82b90f7e53f = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.reject-dialog','data' => []] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('reject-dialog'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes([]); ?>
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginala5652acfc2cfff008a27b82b90f7e53f)): ?>
+<?php $attributes = $__attributesOriginala5652acfc2cfff008a27b82b90f7e53f; ?>
+<?php unset($__attributesOriginala5652acfc2cfff008a27b82b90f7e53f); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginala5652acfc2cfff008a27b82b90f7e53f)): ?>
+<?php $component = $__componentOriginala5652acfc2cfff008a27b82b90f7e53f; ?>
+<?php unset($__componentOriginala5652acfc2cfff008a27b82b90f7e53f); ?>
 <?php endif; ?>
 
 <?php $__env->stopSection(); ?>

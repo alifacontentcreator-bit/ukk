@@ -1,7 +1,7 @@
 
 
-<?php $__env->startSection('title', 'Dasbor Teller'); ?>
-<?php $__env->startSection('page-title', 'Ringkasan Operasional Teller'); ?>
+<?php $__env->startSection('title', 'Dashboard Teller'); ?>
+<?php $__env->startSection('page-title', 'Dashboard'); ?>
 <?php $__env->startSection('page-subtitle', 'Pantau kas loket dan lanjutkan pekerjaan harian Anda.'); ?>
 
 <?php $__env->startSection('content'); ?>
@@ -11,6 +11,7 @@
     $uangDiLaci = $uangDiLaci ?? 0;
     $openingTransfer = $openingTransfer ?? null;
     $closingTransfer = $closingTransfer ?? null;
+    $cashRequest = $cashRequest ?? null;
 ?>
 
     <div class="grid-4">
@@ -201,13 +202,42 @@
         <section class="card">
             <div class="section-head">
                 <div>
-                    <div class="section-title">Pengembalian Kas ke Brankas</div>
-                    <div class="section-sub">Masukkan jumlah uang yang benar-benar diserahkan kepada Supervisor.</div>
+                    <div class="section-title">Kas Tersedia di Laci</div>
+                    <div class="section-sub">Sisa kas Anda hari ini menurut catatan sistem.</div>
                 </div>
             </div>
 
-            <?php if($closingTransfer && $closingTransfer->status === 'pending'): ?>
-                <div class="card-body">
+            <div class="card-body stack">
+                <div class="panel">
+                    <div class="panel-head"><span>Kas tersedia di laci</span><?php if (isset($component)) { $__componentOriginalce262628e3a8d44dc38fd1f3965181bc = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginalce262628e3a8d44dc38fd1f3965181bc = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.icon','data' => ['name' => 'vault']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('icon'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes(['name' => 'vault']); ?>
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginalce262628e3a8d44dc38fd1f3965181bc)): ?>
+<?php $attributes = $__attributesOriginalce262628e3a8d44dc38fd1f3965181bc; ?>
+<?php unset($__attributesOriginalce262628e3a8d44dc38fd1f3965181bc); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginalce262628e3a8d44dc38fd1f3965181bc)): ?>
+<?php $component = $__componentOriginalce262628e3a8d44dc38fd1f3965181bc; ?>
+<?php unset($__componentOriginalce262628e3a8d44dc38fd1f3965181bc); ?>
+<?php endif; ?></div>
+                    <div class="panel-body">
+                        <div class="kv-total" style="margin:0;padding:0;border:0;font-size:16px">
+                            <span>Perkiraan</span><b>Rp <?php echo e(number_format((float) $uangDiLaci, 0, ',', '.')); ?></b>
+                        </div>
+                        <p class="helper" style="margin-top:4px">Modal diterima + setoran &minus; penarikan &minus; pengembalian yang sudah dikonfirmasi.</p>
+                    </div>
+                </div>
+
+                <?php if($closingTransfer && $closingTransfer->status === 'pending'): ?>
                     <div class="alert alert-warn" style="margin:0">
                         <?php if (isset($component)) { $__componentOriginalce262628e3a8d44dc38fd1f3965181bc = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginalce262628e3a8d44dc38fd1f3965181bc = $attributes; } ?>
@@ -231,9 +261,7 @@
 <?php endif; ?>
                         <span>Pengembalian <b>Rp <?php echo e(number_format((float) $closingTransfer->amount, 0, ',', '.')); ?></b> sudah diajukan dan menunggu konfirmasi Supervisor.</span>
                     </div>
-                </div>
-            <?php elseif($closingTransfer && $closingTransfer->status === 'confirmed'): ?>
-                <div class="card-body">
+                <?php elseif($closingTransfer && $closingTransfer->status === 'confirmed'): ?>
                     <div class="alert alert-success" style="margin:0">
                         <?php if (isset($component)) { $__componentOriginalce262628e3a8d44dc38fd1f3965181bc = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginalce262628e3a8d44dc38fd1f3965181bc = $attributes; } ?>
@@ -257,23 +285,27 @@
 <?php endif; ?>
                         <span>Kas <b>Rp <?php echo e(number_format((float) $closingTransfer->amount, 0, ',', '.')); ?></b> hari ini sudah dikembalikan dan dikonfirmasi Supervisor.</span>
                     </div>
-                </div>
-            <?php else: ?>
-                <form action="<?php echo e(route('teller.kas.serahkan-kembali')); ?>" method="POST"
-                      onsubmit="return confirm('Pastikan jumlah uang yang diserahkan sudah benar. Ajukan pengembalian kas?')">
-                    <?php echo csrf_field(); ?>
-                    <div class="card-body stack">
-                        <div class="panel">
-                            <div class="panel-head"><span>Kas tersedia di laci</span><?php if (isset($component)) { $__componentOriginalce262628e3a8d44dc38fd1f3965181bc = $component; } ?>
+                <?php elseif((float) $uangDiLaci <= 0): ?>
+                    <p class="helper" style="margin:0">Belum ada kas yang tersedia untuk dikembalikan.</p>
+                <?php endif; ?>
+
+                
+                <?php
+                    $permintaanPending = $cashRequest && $cashRequest->status === \App\Models\CashRequest::STATUS_PENDING;
+                ?>
+
+                <?php if($permintaanPending): ?>
+                    <div class="alert alert-warn" style="margin:0">
+                        <?php if (isset($component)) { $__componentOriginalce262628e3a8d44dc38fd1f3965181bc = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginalce262628e3a8d44dc38fd1f3965181bc = $attributes; } ?>
-<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.icon','data' => ['name' => 'vault']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.icon','data' => ['name' => 'clock']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
 <?php $component->withName('icon'); ?>
 <?php if ($component->shouldRender()): ?>
 <?php $__env->startComponent($component->resolveView(), $component->data()); ?>
 <?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
 <?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
 <?php endif; ?>
-<?php $component->withAttributes(['name' => 'vault']); ?>
+<?php $component->withAttributes(['name' => 'clock']); ?>
 <?php echo $__env->renderComponent(); ?>
 <?php endif; ?>
 <?php if (isset($__attributesOriginalce262628e3a8d44dc38fd1f3965181bc)): ?>
@@ -283,47 +315,25 @@
 <?php if (isset($__componentOriginalce262628e3a8d44dc38fd1f3965181bc)): ?>
 <?php $component = $__componentOriginalce262628e3a8d44dc38fd1f3965181bc; ?>
 <?php unset($__componentOriginalce262628e3a8d44dc38fd1f3965181bc); ?>
-<?php endif; ?></div>
-                            <div class="panel-body">
-                                <div class="kv-total" style="margin:0;padding:0;border:0;font-size:16px">
-                                    <span>Perkiraan</span><b>Rp <?php echo e(number_format((float) $uangDiLaci, 0, ',', '.')); ?></b>
-                                </div>
-                                <p class="helper" style="margin-top:4px">Jumlah pengembalian tidak boleh melebihi kas yang tersedia.</p>
-                            </div>
-                        </div>
-
-                        <div class="form-grid">
-                            <div class="field">
-                                <label for="closing_amount">Jumlah kas dikembalikan (Rp)</label>
-                                <input type="number" id="closing_amount" name="amount" min="1"
-                                       max="<?php echo e(max(0, (float) $uangDiLaci)); ?>" step="1000"
-                                       value="<?php echo e(old('amount')); ?>" placeholder="Masukkan jumlah kas" required
-                                       <?php echo e((float) $uangDiLaci <= 0 ? 'disabled' : ''); ?>>
-                            </div>
-                            <div class="field">
-                                <label for="closing_description">Keterangan</label>
-                                <input type="text" id="closing_description" name="description" maxlength="500"
-                                       value="<?php echo e(old('description')); ?>" placeholder="Contoh: pengembalian kas operasional hari ini"
-                                       <?php echo e((float) $uangDiLaci <= 0 ? 'disabled' : ''); ?>>
-                            </div>
-                        </div>
-
-                        <?php if((float) $uangDiLaci <= 0): ?>
-                            <p class="helper">Belum ada kas yang tersedia untuk dikembalikan.</p>
-                        <?php endif; ?>
+<?php endif; ?>
+                        <span>
+                            Permintaan tambah modal sudah dikirim ke Supervisor dan masih menunggu diproses.
+                            Nominal ditentukan Supervisor.
+                        </span>
                     </div>
-                    <div class="form-actions" style="padding:0 12px 12px;margin:0;border-top:0">
-                        <button type="submit" class="btn btn-primary btn-sm" <?php echo e((float) $uangDiLaci <= 0 ? 'disabled' : ''); ?>>
+                <?php elseif(!$openingTransfer): ?>
+                    <?php if((float) $uangDiLaci <= 0): ?>
+                        <div class="alert alert-danger" style="margin:0">
                             <?php if (isset($component)) { $__componentOriginalce262628e3a8d44dc38fd1f3965181bc = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginalce262628e3a8d44dc38fd1f3965181bc = $attributes; } ?>
-<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.icon','data' => ['name' => 'send']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.icon','data' => ['name' => 'alert']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
 <?php $component->withName('icon'); ?>
 <?php if ($component->shouldRender()): ?>
 <?php $__env->startComponent($component->resolveView(), $component->data()); ?>
 <?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
 <?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
 <?php endif; ?>
-<?php $component->withAttributes(['name' => 'send']); ?>
+<?php $component->withAttributes(['name' => 'alert']); ?>
 <?php echo $__env->renderComponent(); ?>
 <?php endif; ?>
 <?php if (isset($__attributesOriginalce262628e3a8d44dc38fd1f3965181bc)): ?>
@@ -333,11 +343,48 @@
 <?php if (isset($__componentOriginalce262628e3a8d44dc38fd1f3965181bc)): ?>
 <?php $component = $__componentOriginalce262628e3a8d44dc38fd1f3965181bc; ?>
 <?php unset($__componentOriginalce262628e3a8d44dc38fd1f3965181bc); ?>
-<?php endif; ?> Serahkan Kembali Kas
+<?php endif; ?>
+                            <span>Kas laci sudah habis. Ajukan tambah modal agar Supervisor menyerahkan modal baru.</span>
+                        </div>
+                    <?php endif; ?>
+
+                    <form action="<?php echo e(route('teller.kas.ajukan-modal')); ?>" method="POST" class="stack"
+                          onsubmit="return confirm('Kirim permintaan tambah modal ke Supervisor? Nominal ditentukan Supervisor.')">
+                        <?php echo csrf_field(); ?>
+                        <div class="field">
+                            <label for="note_tambah_modal">Catatan untuk Supervisor (opsional)</label>
+                            <input id="note_tambah_modal" type="text" name="note" maxlength="500"
+                                   placeholder="Contoh: kas laci habis untuk penarikan nasabah">
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-sm">
+                            <?php if (isset($component)) { $__componentOriginalce262628e3a8d44dc38fd1f3965181bc = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginalce262628e3a8d44dc38fd1f3965181bc = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.icon','data' => ['name' => 'plus']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('icon'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes(['name' => 'plus']); ?>
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginalce262628e3a8d44dc38fd1f3965181bc)): ?>
+<?php $attributes = $__attributesOriginalce262628e3a8d44dc38fd1f3965181bc; ?>
+<?php unset($__attributesOriginalce262628e3a8d44dc38fd1f3965181bc); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginalce262628e3a8d44dc38fd1f3965181bc)): ?>
+<?php $component = $__componentOriginalce262628e3a8d44dc38fd1f3965181bc; ?>
+<?php unset($__componentOriginalce262628e3a8d44dc38fd1f3965181bc); ?>
+<?php endif; ?> Ajukan Tambah Modal
                         </button>
-                    </div>
-                </form>
-            <?php endif; ?>
+                        <p class="helper" style="margin:0">
+                            Teller tidak menentukan nominal. Supervisor yang memutuskan jumlah modal tambahan
+                            dan menyerahkannya dari brankas.
+                        </p>
+                    </form>
+                <?php endif; ?>
+            </div>
         </section>
 
         <div class="stack">
@@ -389,6 +436,28 @@
 <?php $component = $__componentOriginalce262628e3a8d44dc38fd1f3965181bc; ?>
 <?php unset($__componentOriginalce262628e3a8d44dc38fd1f3965181bc); ?>
 <?php endif; ?></span> Catat Penarikan
+                    </a>
+                    <a class="quick" href="<?php echo e(route('teller.transaksi.create', ['scan' => 1])); ?>">
+                        <span class="quick-icon"><?php if (isset($component)) { $__componentOriginalce262628e3a8d44dc38fd1f3965181bc = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginalce262628e3a8d44dc38fd1f3965181bc = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.icon','data' => ['name' => 'qr']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('icon'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes(['name' => 'qr']); ?>
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginalce262628e3a8d44dc38fd1f3965181bc)): ?>
+<?php $attributes = $__attributesOriginalce262628e3a8d44dc38fd1f3965181bc; ?>
+<?php unset($__attributesOriginalce262628e3a8d44dc38fd1f3965181bc); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginalce262628e3a8d44dc38fd1f3965181bc)): ?>
+<?php $component = $__componentOriginalce262628e3a8d44dc38fd1f3965181bc; ?>
+<?php unset($__componentOriginalce262628e3a8d44dc38fd1f3965181bc); ?>
+<?php endif; ?></span> Scan QR Nasabah
                     </a>
                     <a class="quick" href="<?php echo e(route('teller.koreksi')); ?>">
                         <span class="quick-icon"><?php if (isset($component)) { $__componentOriginalce262628e3a8d44dc38fd1f3965181bc = $component; } ?>

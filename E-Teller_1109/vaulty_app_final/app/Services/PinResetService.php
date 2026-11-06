@@ -9,11 +9,10 @@ use App\Models\User;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 
 /**
  * Alur reset PIN dua orang (maker-checker):
- *   Teller memeriksa identitas & mengajukan  ->  Supervisor menyetujui  ->  Nasabah membuat PIN baru.
+ *   Teller memeriksa identitas & mengajukan  ->  Admin menyetujui  ->  Nasabah mengganti PIN sementara.
  * Semua jalur reset (termasuk reset darurat admin) lewat service ini,
  * sehingga SELALU tercatat di tabel credential_reset_requests.
  *
@@ -62,7 +61,7 @@ class PinResetService
                 ->exists();
 
             if ($alreadyOpen) {
-                throw new DomainException('Sudah ada pengajuan reset PIN untuk rekening ini yang masih menunggu Supervisor.');
+                throw new DomainException('Sudah ada pengajuan reset PIN untuk rekening ini yang masih menunggu Admin.');
             }
 
             return CredentialResetRequest::create([
@@ -79,7 +78,7 @@ class PinResetService
     }
 
     /**
-     * Supervisor menyetujui. Mengembalikan true bila PIN berhasil direset,
+    * Admin menyetujui. Mengembalikan true bila PIN berhasil direset,
      * false bila pengajuan ternyata sudah kedaluwarsa (ditandai kedaluwarsa).
      */
     public function approve(CredentialResetRequest $request, User $reviewer): bool
@@ -161,9 +160,8 @@ class PinResetService
     }
 
     /**
-     * Reset DARURAT oleh admin tanpa persetujuan supervisor (misalnya tidak ada
-     * supervisor bertugas). Tetap wajib alasan dan tercatat sebagai pengajuan
-     * berstatus approved, serta membatalkan pengajuan pending yang masih terbuka.
+    * Reset darurat oleh admin langsung. Tetap wajib alasan dan tercatat sebagai
+    * pengajuan berstatus approved, serta membatalkan pengajuan pending terbuka.
      */
     public function forceReset(Account $account, User $admin, string $reason): CredentialResetRequest
     {
@@ -188,7 +186,7 @@ class PinResetService
                 'type' => CredentialResetRequest::TYPE_PIN,
                 'requested_by' => $admin->id,
                 'reason' => $reason,
-                'verification_note' => 'Reset darurat oleh Administrator (tanpa persetujuan Supervisor).',
+                'verification_note' => 'Reset darurat langsung oleh Administrator.',
                 'status' => CredentialResetRequest::STATUS_APPROVED,
                 'reviewed_by' => $admin->id,
                 'reviewed_at' => now(),
@@ -205,7 +203,7 @@ class PinResetService
     private function applyReset(Account $account): void
     {
         $account->update([
-            'pin' => Hash::make(Str::random(64)),
+            'pin' => Hash::make('123456'),
             'pin_is_default' => true,
             'pin_attempts' => 0,
             'pin_locked_until' => null,
@@ -215,9 +213,9 @@ class PinResetService
         CustomerNotification::create([
             'user_id' => $account->user_id,
             'title' => 'PIN rekening direset',
-            'message' => 'Reset PIN rekening Anda disetujui petugas bank pada '
+            'message' => 'PIN Anda berhasil diubah oleh Administrator pada '
                 . now()->format('d/m/Y H:i')
-                . '. Buka aplikasi dan segera buat PIN baru. Jika Anda tidak merasa mengajukan reset, hubungi teller.',
+                . '. PIN sementara Anda adalah 123456. Segera buat PIN baru melalui aplikasi. Jika Anda tidak merasa mengajukan reset, hubungi teller.',
             'type' => 'security',
         ]);
     }

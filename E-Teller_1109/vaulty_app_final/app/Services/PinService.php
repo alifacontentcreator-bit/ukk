@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Hash;
  */
 class PinService
 {
-    public const MAX_ATTEMPTS = 5;
+    public const MAX_ATTEMPTS = 3;
 
     public function isLocked(Account $account): bool
     {
@@ -108,7 +108,7 @@ class PinService
     public function lockedMessage(int $retryAfterSeconds): string
     {
         if ($retryAfterSeconds === 0) {
-            return 'PIN terkunci setelah 5 kali salah. Nasabah harus mengajukan reset PIN kepada Teller.';
+            return 'PIN terkunci setelah 3 kali salah. Nasabah harus mengajukan reset PIN kepada Teller.';
         }
 
         $minutes = (int) ceil($retryAfterSeconds / 60);

@@ -617,21 +617,21 @@ input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus
 
 /* --- panel kanan: putih penuh, formulir di tengah vertikal --- */
 .auth-panel{display:flex;min-width:0;padding:28px 36px;background:#fff;overflow-y:auto}
-.auth-form-wrap{width:100%;max-width:380px;margin:auto}
+.auth-form-wrap{width:100%;max-width:420px;margin:auto}
 /* blok identitas (logo + nama) di atas judul formulir, tampil di semua ukuran layar */
-.auth-identity{display:flex;align-items:center;gap:10px;margin-bottom:20px;padding:8px 12px;
-  background:#F4F6EF;border:1px solid #E8EDE0;border-radius:12px}
-.auth-identity-mark{width:40px;height:40px;flex:none;display:grid;place-items:center;padding:3px;
-  background:#fff;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.auth-identity{display:flex;align-items:center;justify-content:center;gap:12px;margin:0 auto 30px;padding:0;
+  background:transparent;border:0;border-radius:0}
+.auth-identity-mark{width:44px;height:44px;flex:none;display:grid;place-items:center;padding:0;
+  background:transparent;border:0;border-radius:0;overflow:visible}
 .auth-identity-mark img{width:100%;height:100%;object-fit:contain;display:block}
-.auth-identity-name{display:block;color:#26331A;font-size:15px;font-weight:700;line-height:1.2}
-.auth-identity-sub{display:block;margin-top:2px;color:var(--muted);font-size:12px;line-height:1.2}
+.auth-identity-name{display:block;color:#26331A;font-size:17px;font-weight:700;line-height:1.2}
+.auth-identity-sub{display:block;margin-top:3px;color:var(--muted);font-size:14px;line-height:1.2}
 /* kepala berikon (lupa sandi / atur ulang sandi) */
 .auth-head-ico{display:grid;place-items:center;width:44px;height:44px;margin-bottom:12px;
   border-radius:50%;background:#E6EDDA;color:var(--green)}
 .auth-head-ico .et-ico{width:20px;height:20px}
-.auth-title{font-size:24px;font-weight:700;color:#26331A;letter-spacing:-.01em;line-height:1.22}
-.auth-desc{margin-top:6px;color:var(--muted);font-size:12.5px;line-height:1.55}
+.auth-title{font-size:24px;font-weight:700;color:#26331A;letter-spacing:-.01em;line-height:1.22;text-align:center}
+.auth-desc{margin-top:6px;color:var(--muted);font-size:14px;line-height:1.55;text-align:center}
 /* alur 3 langkah (dekoratif, aria-hidden) */
 .auth-steps{display:flex;align-items:flex-start;margin:16px 0 0;padding:0;list-style:none}
 .auth-steps li{position:relative;flex:1;display:flex;flex-direction:column;align-items:center;
@@ -745,8 +745,8 @@ input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus
 @media(max-height:820px){
   .auth-panel{padding:20px 30px}
   .auth-form-wrap{max-width:370px}
-  .auth-identity{margin-bottom:12px;padding:7px 11px}
-  .auth-identity-mark{width:36px;height:36px}
+  .auth-identity{margin-bottom:24px}
+  .auth-identity-mark{width:40px;height:40px}
   .auth-head-ico{width:40px;height:40px;margin-bottom:8px}
   .auth-head-ico .et-ico{width:18px;height:18px}
   .auth-title{font-size:22px}
@@ -774,7 +774,7 @@ input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus
 /* 1366x768 @125% (tinggi pandang ~614px): semua konten wajib utuh, jarak dipadatkan */
 @media(max-height:700px){
   .auth-panel{padding:10px 24px}
-  .auth-identity{margin-bottom:8px;padding:4px 8px}
+  .auth-identity{margin-bottom:18px}
   .auth-identity-mark{width:30px;height:30px}
   .auth-identity-name{font-size:13.5px}
   .auth-identity-sub{font-size:11px}
@@ -811,8 +811,8 @@ input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus
 /* jendela sangat pendek (mis. 1366x600 dengan bilah browser): padatkan lagi */
 @media(max-height:600px){
   .auth-panel{padding:12px 22px}
-  .auth-identity{margin-bottom:8px;padding:5px 9px}
-  .auth-identity-mark{width:28px;height:28px}
+  .auth-identity{margin-bottom:18px}
+  .auth-identity-mark{width:32px;height:32px}
   .auth-identity-name{font-size:13.5px}
   .auth-head-ico{width:32px;height:32px;margin-bottom:6px}
   .auth-head-ico .et-ico{width:15px;height:15px}

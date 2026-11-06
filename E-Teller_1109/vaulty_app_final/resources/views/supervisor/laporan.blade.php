@@ -96,23 +96,16 @@
 
         @php
             /*
-             * Total fisik hanya berasal dari seluruh pecahan
-             * uang yang dihitung Teller.
+             * Total fisik hanya berasal dari seluruh pecahan uang yang
+             * dihitung Teller (Rp100.000, Rp50.000, Rp20.000, Rp5.000).
              *
-             * Saldo awal tidak ditambahkan lagi karena
-             * pecahan sudah menghitung seluruh uang di laci.
+             * Saldo awal tidak ditambahkan lagi karena pecahan sudah
+             * menghitung seluruh uang di laci.
              */
 
-            $totalFisik =
-                ((int) $report->pecahan_100k * 100000) +
-                ((int) $report->pecahan_50k * 50000) +
-                ((int) $report->pecahan_20k * 20000);
-
-            $totalSistem =
-                (float) $report->saldo_awal +
-                (float) $report->expected_cash;
-
-            $selisih = $totalFisik - $totalSistem;
+            $totalFisik = $report->totalFisik();
+            $totalSistem = $report->saldoAkhirSistem();
+            $selisih = $report->selisihKas();
 
             $klop = abs($selisih) < 0.01;
         @endphp
@@ -227,6 +220,20 @@
                         </b>
                     </div>
 
+                    <div class="kv-row">
+                        <span>Uang Rp5.000</span>
+                        <b>
+                            {{ $report->pecahan_5k }} lembar
+                        </b>
+                    </div>
+
+                    <div class="kv-row">
+                        <span>Nilai pecahan Rp5.000</span>
+                        <b>
+                            {{ $rp($report->pecahan_5k * 5000) }}
+                        </b>
+                    </div>
+
                     <div class="kv-row kv-total">
                         <span>Total uang fisik</span>
                         <b>{{ $rp($totalFisik) }}</b>
@@ -234,6 +241,21 @@
                 </div>
 
             </div>
+
+            {{-- ALASAN PENOLAKAN --}}
+            @if($report->status === 'rejected' && $report->rejected_reason)
+                <div style="border-top:1px solid var(--line-2);padding:12px 16px">
+                    <strong class="is-bad">Laporan ditolak Supervisor</strong>
+                    <p class="sub" style="margin:4px 0 0">{{ $report->rejected_reason }}</p>
+                    <p class="sub" style="margin:2px 0 0;color:var(--faint)">
+                        Ditolak
+                        {{ $report->rejected_at
+                            ? \Carbon\Carbon::parse($report->rejected_at)->format('d/m/Y H:i')
+                            : '-' }}
+                        oleh {{ $report->rejecter->name ?? 'Supervisor' }}
+                    </p>
+                </div>
+            @endif
 
             {{-- HASIL REKONSILIASI --}}
             <div class="report-foot">
@@ -257,7 +279,14 @@
                 </div>
 
                 {{-- AKSI --}}
-                <div class="actions">
+                <div class="actions" style="gap:8px;flex-wrap:wrap">
+
+                    <a class="btn btn-soft"
+                       href="{{ route('supervisor.laporan.cetak-laporan', $report->id) }}"
+                       target="_blank"
+                       rel="noopener">
+                        Cetak rekap
+                    </a>
 
                     @if($report->status === 'submitted')
 
@@ -274,6 +303,13 @@
                                 Setujui laporan
                             </button>
                         </form>
+
+                        <button type="button"
+                                class="btn btn-danger"
+                                data-reject="{{ route('supervisor.laporan.reject', $report->id) }}"
+                                data-reject-title="Tolak laporan {{ $report->teller->name ?? 'Teller' }} tanggal {{ \Carbon\Carbon::parse($report->report_date)->format('d/m/Y') }}">
+                            Tolak laporan
+                        </button>
 
                     @elseif($report->status === 'approved'
                         && $report->transfer_status === 'pending')
@@ -393,5 +429,8 @@
         <x-pager :paginator="$reports" />
     </div>
 @endif
+
+{{-- DIALOG PENOLAKAN LAPORAN (alasan wajib diisi) --}}
+<x-reject-dialog />
 
 @endsection

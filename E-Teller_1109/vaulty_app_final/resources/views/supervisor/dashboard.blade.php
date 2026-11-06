@@ -13,12 +13,14 @@
 
     $laporanMasuk = \App\Models\DailyReport::where('status', 'submitted')->count();
     $koreksiPending = \App\Models\TransactionCorrection::where('status', 'pending')->count();
-    $resetPending = \App\Models\CredentialResetRequest::open()->where('type', 'pin')->count();
     $siapDipindah = \App\Models\DailyReport::where('status', 'approved')->where('transfer_status', 'pending')->count();
     $transaksiLama = \App\Models\Transaction::where('status', 'pending')->count();
 
+    // Permintaan tambah modal dari Teller yang belum diproses.
+    $permintaanModal = \App\Models\CashRequest::pendingCount();
+
     $laporanHariIni = \App\Models\DailyReport::with('teller')->whereDate('report_date', today())->get()->map(function ($r) {
-        $r->selisih_hitung = ($r->saldo_awal + ($r->pecahan_100k * 100000) + ($r->pecahan_50k * 50000) + ($r->pecahan_20k * 20000)) - ($r->saldo_awal + $r->expected_cash);
+        $r->selisih_hitung = $r->selisihKas();
         return $r;
     });
     $rp = fn ($n) => 'Rp ' . number_format($n, 0, ',', '.');
@@ -31,7 +33,18 @@
     </div>
 @endif
 
-<div class="grid-4">
+@if($permintaanModal > 0)
+    <div class="alert alert-warn">
+        <x-icon name="clock" />
+        <span>
+            Ada {{ $permintaanModal }} permintaan tambah modal dari Teller karena kas laci menipis.
+            Tentukan nominalnya di
+            <a href="{{ route('supervisor.rekonsiliasi') }}" style="font-weight:700;text-decoration:underline">Rekonsiliasi Kas</a>.
+        </span>
+    </div>
+@endif
+
+<div class="grid-3">
     <a href="{{ route('supervisor.laporan') }}" class="card stat">
         <div class="stat-top"><span class="stat-label">Laporan akhir menunggu</span><span class="stat-icon"><x-icon name="file" /></span></div>
         <div><div class="stat-value">{{ $laporanMasuk }}</div><div class="stat-note">{{ $siapDipindah }} kas siap ke brankas</div></div>
@@ -39,10 +52,6 @@
     <a href="{{ route('supervisor.koreksi') }}" class="card stat">
         <div class="stat-top"><span class="stat-label">Koreksi menunggu</span><span class="stat-icon"><x-icon name="flag" /></span></div>
         <div><div class="stat-value">{{ $koreksiPending }}</div><div class="stat-note">Pengajuan dari teller</div></div>
-    </a>
-    <a href="{{ route('supervisor.reset-pin') }}" class="card stat">
-        <div class="stat-top"><span class="stat-label">Reset PIN menunggu</span><span class="stat-icon"><x-icon name="refresh" /></span></div>
-        <div><div class="stat-value">{{ $resetPending }}</div><div class="stat-note">Pengajuan dari teller</div></div>
     </a>
     <a href="{{ route('supervisor.jurnal') }}" class="card stat">
         <div class="stat-top"><span class="stat-label">Transaksi hari ini</span><span class="stat-icon"><x-icon name="swap" /></span></div>
@@ -82,7 +91,6 @@
                 ['Laporan akhir teller', $laporanMasuk, 'supervisor.laporan'],
                 ['Kas siap dipindahkan', $siapDipindah, 'supervisor.laporan'],
                 ['Pengajuan koreksi', $koreksiPending, 'supervisor.koreksi'],
-                ['Pengajuan reset PIN', $resetPending, 'supervisor.reset-pin'],
             ] as [$label, $count, $route])
                 <a href="{{ route($route) }}" class="list-row">
                     <span class="name">{{ $label }}</span>

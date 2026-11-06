@@ -10,9 +10,11 @@
 @php
     $vaultInitial = $vaultInitial ?? 0;
     $vaultBalance = $vaultBalance ?? $vaultInitial;
+    $vaultShortage = $vaultShortage ?? 0;
     $tellers = $tellers ?? collect();
     $openingTransfers = $openingTransfers ?? collect();
     $closingTransfers = $closingTransfers ?? collect();
+    $cashRequests = $cashRequests ?? collect();
     $reports = $reports ?? collect();
 
     $summary = $summary ?? [
@@ -28,31 +30,19 @@
 
 <div class="stack">
 
-    {{-- NOTIFIKASI --}}
-    @if(session('success'))
-        <div class="alert alert-success">
-            <x-icon name="check" />
-            <div>{{ session('success') }}</div>
-        </div>
-    @endif
+    {{-- Notifikasi (sukses / error) ditampilkan sekali oleh layouts/shell di bagian atas halaman. --}}
 
-    @if(session('error'))
-        <div class="alert alert-danger">
-            <x-icon name="alert" />
-            <div>{{ session('error') }}</div>
-        </div>
-    @endif
-
-    @if($errors->any())
-        <div class="alert alert-danger">
+    @if($vaultShortage > 0)
+        <div class="alert alert-warn">
             <x-icon name="alert" />
             <div>
-                <b>Periksa kembali data yang dimasukkan:</b>
-                <ul style="margin:4px 0 0 16px">
-                    @foreach($errors->all() as $error)
-                        <li>{{ $error }}</li>
-                    @endforeach
-                </ul>
+                <p class="name">Saldo awal brankas lebih kecil dari modal yang sudah diserahkan</p>
+                <p class="sub">
+                    Total modal keluar melebihi saldo awal sebesar
+                    Rp {{ number_format((float) $vaultShortage, 0, ',', '.') }},
+                    sehingga saldo brankas ditampilkan Rp 0.
+                    Perbarui saldo awal brankas sesuai uang fisik yang ada di brankas sekarang.
+                </p>
             </div>
         </div>
     @endif
@@ -71,7 +61,6 @@
                 <div class="stat-value">
                     Rp {{ number_format((float) $vaultInitial, 0, ',', '.') }}
                 </div>
-                <div class="stat-note">Modal awal yang ditetapkan supervisor</div>
             </div>
         </div>
 
@@ -85,7 +74,6 @@
                 <div class="stat-value">
                     Rp {{ number_format((float) $vaultBalance, 0, ',', '.') }}
                 </div>
-                <div class="stat-note">Perkiraan saldo setelah perpindahan kas terkonfirmasi</div>
             </div>
         </div>
 
@@ -131,7 +119,9 @@
             <div>
                 <h2 class="section-title">Pengaturan Saldo Awal Brankas</h2>
                 <p class="section-sub">
-                    Tentukan jumlah modal awal yang tersedia di brankas.
+                    Tentukan jumlah modal awal brankas. Saldo brankas saat ini akan sama
+                    dengan angka ini, lalu berkurang ketika modal diserahkan ke Teller dan
+                    bertambah kembali ketika kas dari Teller masuk ke brankas.
                 </p>
             </div>
         </div>
@@ -144,24 +134,134 @@
             @csrf
 
             <div class="field">
-                <label for="initial_balance">Saldo Awal Brankas (Rp)</label>
+                <label for="initial_balance_display">Saldo Awal Brankas (Rp)</label>
 
+                {{-- Tampilan memakai titik ribuan, nilai asli (angka murni) disimpan di input hidden. --}}
                 <input
-                    type="number"
-                    id="initial_balance"
-                    name="initial_balance"
-                    min="0"
-                    step="1000"
-                    value="{{ old('initial_balance', $vaultInitial) }}"
-                    placeholder="Masukkan saldo awal brankas"
+                    type="text"
+                    id="initial_balance_display"
+                    value="{{ number_format((float) old('initial_balance', $vaultInitial), 0, ',', '.') }}"
+                    inputmode="numeric"
+                    autocomplete="off"
+                    data-rupiah-display
+                    data-target="initial_balance"
+                    placeholder="Contoh: 1.000.000"
                     required
                 >
+
+                <input
+                    type="hidden"
+                    id="initial_balance"
+                    name="initial_balance"
+                    value="{{ old('initial_balance', (int) $vaultInitial) }}"
+                >
+
+                <p class="helper">
+                    Saldo awal yang disimpan langsung menjadi saldo brankas saat ini.
+                    Saldo berkurang setelah Anda menyerahkan modal ke Teller, dan
+                    bertambah kembali setelah kas dari Teller masuk ke brankas.
+                </p>
             </div>
 
             <button type="submit" class="btn btn-primary">
                 Simpan Saldo Awal
             </button>
         </form>
+
+    </section>
+
+
+    {{-- PERMINTAAN TAMBAH MODAL DARI TELLER --}}
+    <section class="card section">
+
+        <div class="section-head">
+            <div>
+                <h2 class="section-title">Permintaan Tambah Modal dari Teller</h2>
+                <p class="section-sub">
+                    Teller mengajukan tambahan modal ketika kas laci menipis.
+                    Nominal ditentukan Supervisor, lalu Teller mengonfirmasi penerimaannya.
+                </p>
+            </div>
+
+            @if($cashRequests->isNotEmpty())
+                <span class="badge badge-warn">
+                    {{ $cashRequests->count() }} menunggu
+                </span>
+            @endif
+        </div>
+
+        <div class="table-wrap">
+            <table class="table">
+
+                <thead>
+                    <tr>
+                        <th>Teller</th>
+                        <th>Tanggal</th>
+                        <th>Catatan Teller</th>
+                        <th class="num">Nominal Tambahan (Rp)</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @forelse($cashRequests as $cashRequest)
+                        <tr>
+                            <td class="name">
+                                {{ $cashRequest->teller->name ?? '-' }}
+                            </td>
+
+                            <td>
+                                {{ \Carbon\Carbon::parse($cashRequest->request_date)->format('d/m/Y') }}
+                            </td>
+
+                            <td>
+                                {{ $cashRequest->note ?? '-' }}
+                            </td>
+
+                            <td>
+                                <form
+                                    action="{{ route('supervisor.kas.penuhi-modal', $cashRequest) }}"
+                                    method="POST"
+                                    class="toolbar"
+                                    style="justify-content:flex-end;gap:6px;flex-wrap:nowrap"
+                                >
+                                    @csrf
+
+                                    <input
+                                        type="text"
+                                        id="req_amount_display_{{ $cashRequest->id }}"
+                                        data-rupiah-display
+                                        data-target="req_amount_{{ $cashRequest->id }}"
+                                        inputmode="numeric"
+                                        autocomplete="off"
+                                        placeholder="Contoh: 100.000"
+                                        style="max-width:150px"
+                                        required
+                                    >
+
+                                    <input
+                                        type="hidden"
+                                        id="req_amount_{{ $cashRequest->id }}"
+                                        name="amount"
+                                        value=""
+                                    >
+
+                                    <button type="submit" class="btn btn-primary btn-sm">
+                                        Serahkan
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="4" class="empty-cell">
+                                Tidak ada permintaan tambah modal. Teller dapat mengajukan dari dashboard Teller.
+                            </td>
+                        </tr>
+                    @endforelse
+                </tbody>
+
+            </table>
+        </div>
 
     </section>
 
@@ -204,18 +304,32 @@
             </div>
 
             <div class="field">
-                <label for="opening_amount">Jumlah Modal (Rp)</label>
+                <label for="amount_display">Jumlah Modal (Rp)</label>
 
+                {{-- Diketik bebas (1000 / 100000), otomatis tampil 1.000 / 100.000. --}}
                 <input
-                    type="number"
-                    id="opening_amount"
-                    name="amount"
-                    min="1"
-                    step="1000"
-                    value="{{ old('amount') }}"
-                    placeholder="Masukkan jumlah modal"
+                    type="text"
+                    id="amount_display"
+                    value="{{ old('amount') ? number_format((float) old('amount'), 0, ',', '.') : '' }}"
+                    inputmode="numeric"
+                    autocomplete="off"
+                    data-rupiah-display
+                    data-target="amount"
+                    placeholder="Contoh: 100.000"
                     required
                 >
+
+                <input
+                    type="hidden"
+                    id="amount"
+                    name="amount"
+                    value="{{ old('amount') }}"
+                >
+
+                <p class="helper">
+                    Titik ribuan ditambahkan otomatis, misalnya 1.000 untuk seribu rupiah
+                    dan 100.000 untuk seratus ribu rupiah.
+                </p>
             </div>
 
             <div class="field">
@@ -520,3 +634,64 @@
 </div>
 
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+    // Hanya ambil digit angka (buang titik, spasi, dan karakter lain).
+    function hanyaAngka(value) {
+        return (value || '').replace(/\D/g, '');
+    }
+
+    // 1000 -> 1.000 dan 100000 -> 100.000.
+    function formatRibuan(angka) {
+
+        if (angka === '') {
+            return '';
+        }
+
+        // Buang nol di depan supaya "0100" tidak menjadi "0.100".
+        angka = angka.replace(/^0+(?=\d)/, '');
+
+        return angka.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    }
+
+    document.querySelectorAll('[data-rupiah-display]').forEach(function (display) {
+
+        const hidden = document.getElementById(display.dataset.target);
+
+        if (!hidden) {
+            return;
+        }
+
+        function sinkronkan(nilai) {
+
+            const angka = hanyaAngka(nilai);
+
+            // Tampilan diberi titik ribuan, nilai untuk server tetap angka murni.
+            display.value = formatRibuan(angka);
+            hidden.value = angka;
+        }
+
+        // Nilai awal (old() atau saldo brankas saat ini) langsung diformat.
+        sinkronkan(hidden.value);
+
+        display.addEventListener('input', function () {
+            sinkronkan(display.value);
+        });
+
+        const form = display.closest('form');
+
+        if (form) {
+            // Pastikan Laravel selalu menerima angka tanpa titik.
+            form.addEventListener('submit', function () {
+                hidden.value = hanyaAngka(display.value);
+            });
+        }
+
+    });
+
+});
+</script>
+@endpush

@@ -1,7 +1,7 @@
 @extends('layouts.teller')
 
-@section('title', 'Dasbor Teller')
-@section('page-title', 'Ringkasan Operasional Teller')
+@section('title', 'Dashboard Teller')
+@section('page-title', 'Dashboard')
 @section('page-subtitle', 'Pantau kas loket dan lanjutkan pekerjaan harian Anda.')
 
 @section('content')
@@ -11,6 +11,7 @@
     $uangDiLaci = $uangDiLaci ?? 0;
     $openingTransfer = $openingTransfer ?? null;
     $closingTransfer = $closingTransfer ?? null;
+    $cashRequest = $cashRequest ?? null;
 @endphp
 
     <div class="grid-4">
@@ -87,67 +88,75 @@
         <section class="card">
             <div class="section-head">
                 <div>
-                    <div class="section-title">Pengembalian Kas ke Brankas</div>
-                    <div class="section-sub">Masukkan jumlah uang yang benar-benar diserahkan kepada Supervisor.</div>
+                    <div class="section-title">Kas Tersedia di Laci</div>
+                    <div class="section-sub">Sisa kas Anda hari ini menurut catatan sistem.</div>
                 </div>
             </div>
 
-            @if($closingTransfer && $closingTransfer->status === 'pending')
-                <div class="card-body">
+            <div class="card-body stack">
+                <div class="panel">
+                    <div class="panel-head"><span>Kas tersedia di laci</span><x-icon name="vault" /></div>
+                    <div class="panel-body">
+                        <div class="kv-total" style="margin:0;padding:0;border:0;font-size:16px">
+                            <span>Perkiraan</span><b>Rp {{ number_format((float) $uangDiLaci, 0, ',', '.') }}</b>
+                        </div>
+                        <p class="helper" style="margin-top:4px">Modal diterima + setoran &minus; penarikan &minus; pengembalian yang sudah dikonfirmasi.</p>
+                    </div>
+                </div>
+
+                @if($closingTransfer && $closingTransfer->status === 'pending')
                     <div class="alert alert-warn" style="margin:0">
                         <x-icon name="clock" />
                         <span>Pengembalian <b>Rp {{ number_format((float) $closingTransfer->amount, 0, ',', '.') }}</b> sudah diajukan dan menunggu konfirmasi Supervisor.</span>
                     </div>
-                </div>
-            @elseif($closingTransfer && $closingTransfer->status === 'confirmed')
-                <div class="card-body">
+                @elseif($closingTransfer && $closingTransfer->status === 'confirmed')
                     <div class="alert alert-success" style="margin:0">
                         <x-icon name="check" />
                         <span>Kas <b>Rp {{ number_format((float) $closingTransfer->amount, 0, ',', '.') }}</b> hari ini sudah dikembalikan dan dikonfirmasi Supervisor.</span>
                     </div>
-                </div>
-            @else
-                <form action="{{ route('teller.kas.serahkan-kembali') }}" method="POST"
-                      onsubmit="return confirm('Pastikan jumlah uang yang diserahkan sudah benar. Ajukan pengembalian kas?')">
-                    @csrf
-                    <div class="card-body stack">
-                        <div class="panel">
-                            <div class="panel-head"><span>Kas tersedia di laci</span><x-icon name="vault" /></div>
-                            <div class="panel-body">
-                                <div class="kv-total" style="margin:0;padding:0;border:0;font-size:16px">
-                                    <span>Perkiraan</span><b>Rp {{ number_format((float) $uangDiLaci, 0, ',', '.') }}</b>
-                                </div>
-                                <p class="helper" style="margin-top:4px">Jumlah pengembalian tidak boleh melebihi kas yang tersedia.</p>
-                            </div>
-                        </div>
+                @elseif((float) $uangDiLaci <= 0)
+                    <p class="helper" style="margin:0">Belum ada kas yang tersedia untuk dikembalikan.</p>
+                @endif
 
-                        <div class="form-grid">
-                            <div class="field">
-                                <label for="closing_amount">Jumlah kas dikembalikan (Rp)</label>
-                                <input type="number" id="closing_amount" name="amount" min="1"
-                                       max="{{ max(0, (float) $uangDiLaci) }}" step="1000"
-                                       value="{{ old('amount') }}" placeholder="Masukkan jumlah kas" required
-                                       {{ (float) $uangDiLaci <= 0 ? 'disabled' : '' }}>
-                            </div>
-                            <div class="field">
-                                <label for="closing_description">Keterangan</label>
-                                <input type="text" id="closing_description" name="description" maxlength="500"
-                                       value="{{ old('description') }}" placeholder="Contoh: pengembalian kas operasional hari ini"
-                                       {{ (float) $uangDiLaci <= 0 ? 'disabled' : '' }}>
-                            </div>
-                        </div>
+                {{-- PENGAJUAN TAMBAH MODAL KE SUPERVISOR --}}
+                @php
+                    $permintaanPending = $cashRequest && $cashRequest->status === \App\Models\CashRequest::STATUS_PENDING;
+                @endphp
 
-                        @if((float) $uangDiLaci <= 0)
-                            <p class="helper">Belum ada kas yang tersedia untuk dikembalikan.</p>
-                        @endif
+                @if($permintaanPending)
+                    <div class="alert alert-warn" style="margin:0">
+                        <x-icon name="clock" />
+                        <span>
+                            Permintaan tambah modal sudah dikirim ke Supervisor dan masih menunggu diproses.
+                            Nominal ditentukan Supervisor.
+                        </span>
                     </div>
-                    <div class="form-actions" style="padding:0 12px 12px;margin:0;border-top:0">
-                        <button type="submit" class="btn btn-primary btn-sm" {{ (float) $uangDiLaci <= 0 ? 'disabled' : '' }}>
-                            <x-icon name="send" /> Serahkan Kembali Kas
+                @elseif(!$openingTransfer)
+                    @if((float) $uangDiLaci <= 0)
+                        <div class="alert alert-danger" style="margin:0">
+                            <x-icon name="alert" />
+                            <span>Kas laci sudah habis. Ajukan tambah modal agar Supervisor menyerahkan modal baru.</span>
+                        </div>
+                    @endif
+
+                    <form action="{{ route('teller.kas.ajukan-modal') }}" method="POST" class="stack"
+                          onsubmit="return confirm('Kirim permintaan tambah modal ke Supervisor? Nominal ditentukan Supervisor.')">
+                        @csrf
+                        <div class="field">
+                            <label for="note_tambah_modal">Catatan untuk Supervisor (opsional)</label>
+                            <input id="note_tambah_modal" type="text" name="note" maxlength="500"
+                                   placeholder="Contoh: kas laci habis untuk penarikan nasabah">
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-sm">
+                            <x-icon name="plus" /> Ajukan Tambah Modal
                         </button>
-                    </div>
-                </form>
-            @endif
+                        <p class="helper" style="margin:0">
+                            Teller tidak menentukan nominal. Supervisor yang memutuskan jumlah modal tambahan
+                            dan menyerahkannya dari brankas.
+                        </p>
+                    </form>
+                @endif
+            </div>
         </section>
 
         <div class="stack">
@@ -161,6 +170,9 @@
                     </a>
                     <a class="quick" href="{{ route('teller.transaksi.create', ['type' => 'withdrawal']) }}">
                         <span class="quick-icon"><x-icon name="minus" /></span> Catat Penarikan
+                    </a>
+                    <a class="quick" href="{{ route('teller.transaksi.create', ['scan' => 1]) }}">
+                        <span class="quick-icon"><x-icon name="qr" /></span> Scan QR Nasabah
                     </a>
                     <a class="quick" href="{{ route('teller.koreksi') }}">
                         <span class="quick-icon"><x-icon name="history" /></span> Riwayat &amp; Koreksi

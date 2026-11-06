@@ -1,9 +1,32 @@
 
 <?php $__env->startSection('role', 'Teller'); ?>
 
+<?php $__env->startSection('topbar-actions'); ?>
+    <?php if (isset($component)) { $__componentOriginalbbf06c37d1079f37cec694f06a96f49b = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginalbbf06c37d1079f37cec694f06a96f49b = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.report-notification-bell','data' => []] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('report-notification-bell'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes([]); ?>
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginalbbf06c37d1079f37cec694f06a96f49b)): ?>
+<?php $attributes = $__attributesOriginalbbf06c37d1079f37cec694f06a96f49b; ?>
+<?php unset($__attributesOriginalbbf06c37d1079f37cec694f06a96f49b); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginalbbf06c37d1079f37cec694f06a96f49b)): ?>
+<?php $component = $__componentOriginalbbf06c37d1079f37cec694f06a96f49b; ?>
+<?php unset($__componentOriginalbbf06c37d1079f37cec694f06a96f49b); ?>
+<?php endif; ?>
+<?php $__env->stopSection(); ?>
+
 <?php $__env->startSection('nav'); ?>
             <div class="nav-group">Utama</div>
-            <a class="nav-item <?php echo e(request()->routeIs('teller.dashboard') ? 'active' : ''); ?>" href="<?php echo e(route('teller.dashboard')); ?>" title="Dasbor"><?php if (isset($component)) { $__componentOriginalce262628e3a8d44dc38fd1f3965181bc = $component; } ?>
+            <a class="nav-item <?php echo e(request()->routeIs('teller.dashboard') ? 'active' : ''); ?>" href="<?php echo e(route('teller.dashboard')); ?>" title="Dashboard"><?php if (isset($component)) { $__componentOriginalce262628e3a8d44dc38fd1f3965181bc = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginalce262628e3a8d44dc38fd1f3965181bc = $attributes; } ?>
 <?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.icon','data' => ['name' => 'home']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
 <?php $component->withName('icon'); ?>
@@ -22,7 +45,7 @@
 <?php if (isset($__componentOriginalce262628e3a8d44dc38fd1f3965181bc)): ?>
 <?php $component = $__componentOriginalce262628e3a8d44dc38fd1f3965181bc; ?>
 <?php unset($__componentOriginalce262628e3a8d44dc38fd1f3965181bc); ?>
-<?php endif; ?><span>Dasbor</span></a>
+<?php endif; ?><span>Dashboard</span></a>
             <div class="nav-group">Layanan</div>
             <a class="nav-item <?php echo e(request()->routeIs('teller.transaksi*') ? 'active' : ''); ?>" href="<?php echo e(route('teller.transaksi.create')); ?>" title="Transaksi Nasabah"><?php if (isset($component)) { $__componentOriginalce262628e3a8d44dc38fd1f3965181bc = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginalce262628e3a8d44dc38fd1f3965181bc = $attributes; } ?>

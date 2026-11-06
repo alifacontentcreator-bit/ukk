@@ -66,7 +66,7 @@ class TransactionCorrectionController extends Controller
         $request->validate([
             'transaction_id' => 'required|exists:transactions,id',
             'jenis_koreksi' => 'required|in:kurang,tambah',
-            'amount' => 'required|numeric|min:1000',
+            'amount' => ['required', 'numeric', $request->input('jenis_koreksi') === 'tambah' ? 'min:5000' : 'gt:0'],
             'sandi_koreksi' => ['required', 'string', 'in:' . implode(',', self::KODE_KOREKSI)],
             'reason' => 'required|string|max:255',
         ]);

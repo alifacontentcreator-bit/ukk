@@ -1,9 +1,13 @@
 @extends('layouts.shell')
 @section('role', 'Teller')
 
+@section('topbar-actions')
+    <x-report-notification-bell />
+@endsection
+
 @section('nav')
             <div class="nav-group">Utama</div>
-            <a class="nav-item {{ request()->routeIs('teller.dashboard') ? 'active' : '' }}" href="{{ route('teller.dashboard') }}" title="Dasbor"><x-icon name="home" /><span>Dasbor</span></a>
+            <a class="nav-item {{ request()->routeIs('teller.dashboard') ? 'active' : '' }}" href="{{ route('teller.dashboard') }}" title="Dashboard"><x-icon name="home" /><span>Dashboard</span></a>
             <div class="nav-group">Layanan</div>
             <a class="nav-item {{ request()->routeIs('teller.transaksi*') ? 'active' : '' }}" href="{{ route('teller.transaksi.create') }}" title="Transaksi Nasabah"><x-icon name="plus-circle" /><span>Transaksi Nasabah</span></a>
             <a class="nav-item {{ request()->routeIs('teller.reset-pin*') ? 'active' : '' }}" href="{{ route('teller.reset-pin') }}" title="Reset PIN Nasabah"><x-icon name="key" /><span>Reset PIN Nasabah</span></a>

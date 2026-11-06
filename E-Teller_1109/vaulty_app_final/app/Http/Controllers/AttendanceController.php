@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\DutyAttendance;
 use App\Models\DutySchedule;
+use App\Models\DutyWeeklySchedule;
 use Illuminate\Http\Request;
 
 /**
  * Sisi TELLER: absen masuk/pulang untuk shift jaga dan riwayat kehadiran sendiri.
+ * Jadwal jaga diambil dari template mingguan (Senin–Jumat).
  * Teller di luar jadwal tetap bisa absen, tetapi dicatat "Di luar jadwal".
  */
 class AttendanceController extends Controller
@@ -22,24 +24,23 @@ class AttendanceController extends Controller
             'status' => ['nullable', 'in:hadir,izin,sakit,alpa'],
         ]);
 
-        $jadwalHariIni = DutySchedule::with('shift')
-            ->where('user_id', $userId)
-            ->whereDate('duty_date', today())
-            ->get()
-            ->filter(fn ($j) => $j->shift && $j->shift->is_active)
-            ->values();
+        // Jadwal hari ini mengikuti template mingguan (bukan tanggal).
+        $jadwalHariIni = DutyWeeklySchedule::forActiveDate(today(), $userId);
 
         $absenHariIni = DutyAttendance::with('shift')
             ->where('user_id', $userId)
             ->whereDate('duty_date', today())
             ->get();
 
-        $jadwalMendatang = DutySchedule::with('shift')
-            ->where('user_id', $userId)
-            ->whereDate('duty_date', '>', today())
-            ->whereDate('duty_date', '<=', today()->addDays(7))
-            ->orderBy('duty_date')
-            ->get();
+        // Jadwal 7 hari ke depan, dihitung dari hari pada template mingguan.
+        $jadwalMendatang = collect(range(1, 7))
+            ->flatMap(function (int $i) use ($userId) {
+                $tanggal = today()->addDays($i);
+
+                return DutyWeeklySchedule::forDate($tanggal, $userId);
+            })
+            ->sortBy(fn ($j) => $j->duty_date->timestamp)
+            ->values();
 
         $query = DutyAttendance::with(['shift', 'marker'])->where('user_id', $userId);
         if (!empty($f['from'])) $query->whereDate('duty_date', '>=', $f['from']);
@@ -60,7 +61,9 @@ class AttendanceController extends Controller
         $shiftId = $data['duty_shift_id'] ?? null;
         $note = null;
 
-        $scheduled = DutySchedule::where('user_id', $userId)->whereDate('duty_date', today());
+        // Jadwal hari ini dari template mingguan.
+        $scheduled = DutyWeeklySchedule::where('user_id', $userId)
+            ->where('day_of_week', today()->dayOfWeekIso);
 
         if ($shiftId) {
             if (!(clone $scheduled)->where('duty_shift_id', $shiftId)->exists()) {

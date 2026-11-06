@@ -7,9 +7,11 @@
 <?php
     $vaultInitial = $vaultInitial ?? 0;
     $vaultBalance = $vaultBalance ?? $vaultInitial;
+    $vaultShortage = $vaultShortage ?? 0;
     $tellers = $tellers ?? collect();
     $openingTransfers = $openingTransfers ?? collect();
     $closingTransfers = $closingTransfers ?? collect();
+    $cashRequests = $cashRequests ?? collect();
     $reports = $reports ?? collect();
 
     $summary = $summary ?? [
@@ -26,60 +28,9 @@
 <div class="stack">
 
     
-    <?php if(session('success')): ?>
-        <div class="alert alert-success">
-            <?php if (isset($component)) { $__componentOriginalce262628e3a8d44dc38fd1f3965181bc = $component; } ?>
-<?php if (isset($attributes)) { $__attributesOriginalce262628e3a8d44dc38fd1f3965181bc = $attributes; } ?>
-<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.icon','data' => ['name' => 'check']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
-<?php $component->withName('icon'); ?>
-<?php if ($component->shouldRender()): ?>
-<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
-<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
-<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
-<?php endif; ?>
-<?php $component->withAttributes(['name' => 'check']); ?>
-<?php echo $__env->renderComponent(); ?>
-<?php endif; ?>
-<?php if (isset($__attributesOriginalce262628e3a8d44dc38fd1f3965181bc)): ?>
-<?php $attributes = $__attributesOriginalce262628e3a8d44dc38fd1f3965181bc; ?>
-<?php unset($__attributesOriginalce262628e3a8d44dc38fd1f3965181bc); ?>
-<?php endif; ?>
-<?php if (isset($__componentOriginalce262628e3a8d44dc38fd1f3965181bc)): ?>
-<?php $component = $__componentOriginalce262628e3a8d44dc38fd1f3965181bc; ?>
-<?php unset($__componentOriginalce262628e3a8d44dc38fd1f3965181bc); ?>
-<?php endif; ?>
-            <div><?php echo e(session('success')); ?></div>
-        </div>
-    <?php endif; ?>
 
-    <?php if(session('error')): ?>
-        <div class="alert alert-danger">
-            <?php if (isset($component)) { $__componentOriginalce262628e3a8d44dc38fd1f3965181bc = $component; } ?>
-<?php if (isset($attributes)) { $__attributesOriginalce262628e3a8d44dc38fd1f3965181bc = $attributes; } ?>
-<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.icon','data' => ['name' => 'alert']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
-<?php $component->withName('icon'); ?>
-<?php if ($component->shouldRender()): ?>
-<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
-<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
-<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
-<?php endif; ?>
-<?php $component->withAttributes(['name' => 'alert']); ?>
-<?php echo $__env->renderComponent(); ?>
-<?php endif; ?>
-<?php if (isset($__attributesOriginalce262628e3a8d44dc38fd1f3965181bc)): ?>
-<?php $attributes = $__attributesOriginalce262628e3a8d44dc38fd1f3965181bc; ?>
-<?php unset($__attributesOriginalce262628e3a8d44dc38fd1f3965181bc); ?>
-<?php endif; ?>
-<?php if (isset($__componentOriginalce262628e3a8d44dc38fd1f3965181bc)): ?>
-<?php $component = $__componentOriginalce262628e3a8d44dc38fd1f3965181bc; ?>
-<?php unset($__componentOriginalce262628e3a8d44dc38fd1f3965181bc); ?>
-<?php endif; ?>
-            <div><?php echo e(session('error')); ?></div>
-        </div>
-    <?php endif; ?>
-
-    <?php if($errors->any()): ?>
-        <div class="alert alert-danger">
+    <?php if($vaultShortage > 0): ?>
+        <div class="alert alert-warn">
             <?php if (isset($component)) { $__componentOriginalce262628e3a8d44dc38fd1f3965181bc = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginalce262628e3a8d44dc38fd1f3965181bc = $attributes; } ?>
 <?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.icon','data' => ['name' => 'alert']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
@@ -101,12 +52,13 @@
 <?php unset($__componentOriginalce262628e3a8d44dc38fd1f3965181bc); ?>
 <?php endif; ?>
             <div>
-                <b>Periksa kembali data yang dimasukkan:</b>
-                <ul style="margin:4px 0 0 16px">
-                    <?php $__currentLoopData = $errors->all(); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $error): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                        <li><?php echo e($error); ?></li>
-                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                </ul>
+                <p class="name">Saldo awal brankas lebih kecil dari modal yang sudah diserahkan</p>
+                <p class="sub">
+                    Total modal keluar melebihi saldo awal sebesar
+                    Rp <?php echo e(number_format((float) $vaultShortage, 0, ',', '.')); ?>,
+                    sehingga saldo brankas ditampilkan Rp 0.
+                    Perbarui saldo awal brankas sesuai uang fisik yang ada di brankas sekarang.
+                </p>
             </div>
         </div>
     <?php endif; ?>
@@ -126,7 +78,6 @@
                     Rp <?php echo e(number_format((float) $vaultInitial, 0, ',', '.')); ?>
 
                 </div>
-                <div class="stat-note">Modal awal yang ditetapkan supervisor</div>
             </div>
         </div>
 
@@ -141,7 +92,6 @@
                     Rp <?php echo e(number_format((float) $vaultBalance, 0, ',', '.')); ?>
 
                 </div>
-                <div class="stat-note">Perkiraan saldo setelah perpindahan kas terkonfirmasi</div>
             </div>
         </div>
 
@@ -188,7 +138,9 @@
             <div>
                 <h2 class="section-title">Pengaturan Saldo Awal Brankas</h2>
                 <p class="section-sub">
-                    Tentukan jumlah modal awal yang tersedia di brankas.
+                    Tentukan jumlah modal awal brankas. Saldo brankas saat ini akan sama
+                    dengan angka ini, lalu berkurang ketika modal diserahkan ke Teller dan
+                    bertambah kembali ketika kas dari Teller masuk ke brankas.
                 </p>
             </div>
         </div>
@@ -201,24 +153,137 @@
             <?php echo csrf_field(); ?>
 
             <div class="field">
-                <label for="initial_balance">Saldo Awal Brankas (Rp)</label>
+                <label for="initial_balance_display">Saldo Awal Brankas (Rp)</label>
 
+                
                 <input
-                    type="number"
-                    id="initial_balance"
-                    name="initial_balance"
-                    min="0"
-                    step="1000"
-                    value="<?php echo e(old('initial_balance', $vaultInitial)); ?>"
-                    placeholder="Masukkan saldo awal brankas"
+                    type="text"
+                    id="initial_balance_display"
+                    value="<?php echo e(number_format((float) old('initial_balance', $vaultInitial), 0, ',', '.')); ?>"
+                    inputmode="numeric"
+                    autocomplete="off"
+                    data-rupiah-display
+                    data-target="initial_balance"
+                    placeholder="Contoh: 1.000.000"
                     required
                 >
+
+                <input
+                    type="hidden"
+                    id="initial_balance"
+                    name="initial_balance"
+                    value="<?php echo e(old('initial_balance', (int) $vaultInitial)); ?>"
+                >
+
+                <p class="helper">
+                    Saldo awal yang disimpan langsung menjadi saldo brankas saat ini.
+                    Saldo berkurang setelah Anda menyerahkan modal ke Teller, dan
+                    bertambah kembali setelah kas dari Teller masuk ke brankas.
+                </p>
             </div>
 
             <button type="submit" class="btn btn-primary">
                 Simpan Saldo Awal
             </button>
         </form>
+
+    </section>
+
+
+    
+    <section class="card section">
+
+        <div class="section-head">
+            <div>
+                <h2 class="section-title">Permintaan Tambah Modal dari Teller</h2>
+                <p class="section-sub">
+                    Teller mengajukan tambahan modal ketika kas laci menipis.
+                    Nominal ditentukan Supervisor, lalu Teller mengonfirmasi penerimaannya.
+                </p>
+            </div>
+
+            <?php if($cashRequests->isNotEmpty()): ?>
+                <span class="badge badge-warn">
+                    <?php echo e($cashRequests->count()); ?> menunggu
+                </span>
+            <?php endif; ?>
+        </div>
+
+        <div class="table-wrap">
+            <table class="table">
+
+                <thead>
+                    <tr>
+                        <th>Teller</th>
+                        <th>Tanggal</th>
+                        <th>Catatan Teller</th>
+                        <th class="num">Nominal Tambahan (Rp)</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    <?php $__empty_1 = true; $__currentLoopData = $cashRequests; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $cashRequest): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                        <tr>
+                            <td class="name">
+                                <?php echo e($cashRequest->teller->name ?? '-'); ?>
+
+                            </td>
+
+                            <td>
+                                <?php echo e(\Carbon\Carbon::parse($cashRequest->request_date)->format('d/m/Y')); ?>
+
+                            </td>
+
+                            <td>
+                                <?php echo e($cashRequest->note ?? '-'); ?>
+
+                            </td>
+
+                            <td>
+                                <form
+                                    action="<?php echo e(route('supervisor.kas.penuhi-modal', $cashRequest)); ?>"
+                                    method="POST"
+                                    class="toolbar"
+                                    style="justify-content:flex-end;gap:6px;flex-wrap:nowrap"
+                                >
+                                    <?php echo csrf_field(); ?>
+
+                                    <input
+                                        type="text"
+                                        id="req_amount_display_<?php echo e($cashRequest->id); ?>"
+                                        data-rupiah-display
+                                        data-target="req_amount_<?php echo e($cashRequest->id); ?>"
+                                        inputmode="numeric"
+                                        autocomplete="off"
+                                        placeholder="Contoh: 100.000"
+                                        style="max-width:150px"
+                                        required
+                                    >
+
+                                    <input
+                                        type="hidden"
+                                        id="req_amount_<?php echo e($cashRequest->id); ?>"
+                                        name="amount"
+                                        value=""
+                                    >
+
+                                    <button type="submit" class="btn btn-primary btn-sm">
+                                        Serahkan
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
+                        <tr>
+                            <td colspan="4" class="empty-cell">
+                                Tidak ada permintaan tambah modal. Teller dapat mengajukan dari dashboard Teller.
+                            </td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+
+            </table>
+        </div>
 
     </section>
 
@@ -263,18 +328,32 @@
             </div>
 
             <div class="field">
-                <label for="opening_amount">Jumlah Modal (Rp)</label>
+                <label for="amount_display">Jumlah Modal (Rp)</label>
 
+                
                 <input
-                    type="number"
-                    id="opening_amount"
-                    name="amount"
-                    min="1"
-                    step="1000"
-                    value="<?php echo e(old('amount')); ?>"
-                    placeholder="Masukkan jumlah modal"
+                    type="text"
+                    id="amount_display"
+                    value="<?php echo e(old('amount') ? number_format((float) old('amount'), 0, ',', '.') : ''); ?>"
+                    inputmode="numeric"
+                    autocomplete="off"
+                    data-rupiah-display
+                    data-target="amount"
+                    placeholder="Contoh: 100.000"
                     required
                 >
+
+                <input
+                    type="hidden"
+                    id="amount"
+                    name="amount"
+                    value="<?php echo e(old('amount')); ?>"
+                >
+
+                <p class="helper">
+                    Titik ribuan ditambahkan otomatis, misalnya 1.000 untuk seribu rupiah
+                    dan 100.000 untuk seratus ribu rupiah.
+                </p>
             </div>
 
             <div class="field">
@@ -594,5 +673,66 @@
 </div>
 
 <?php $__env->stopSection(); ?>
+
+<?php $__env->startPush('scripts'); ?>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+    // Hanya ambil digit angka (buang titik, spasi, dan karakter lain).
+    function hanyaAngka(value) {
+        return (value || '').replace(/\D/g, '');
+    }
+
+    // 1000 -> 1.000 dan 100000 -> 100.000.
+    function formatRibuan(angka) {
+
+        if (angka === '') {
+            return '';
+        }
+
+        // Buang nol di depan supaya "0100" tidak menjadi "0.100".
+        angka = angka.replace(/^0+(?=\d)/, '');
+
+        return angka.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    }
+
+    document.querySelectorAll('[data-rupiah-display]').forEach(function (display) {
+
+        const hidden = document.getElementById(display.dataset.target);
+
+        if (!hidden) {
+            return;
+        }
+
+        function sinkronkan(nilai) {
+
+            const angka = hanyaAngka(nilai);
+
+            // Tampilan diberi titik ribuan, nilai untuk server tetap angka murni.
+            display.value = formatRibuan(angka);
+            hidden.value = angka;
+        }
+
+        // Nilai awal (old() atau saldo brankas saat ini) langsung diformat.
+        sinkronkan(hidden.value);
+
+        display.addEventListener('input', function () {
+            sinkronkan(display.value);
+        });
+
+        const form = display.closest('form');
+
+        if (form) {
+            // Pastikan Laravel selalu menerima angka tanpa titik.
+            form.addEventListener('submit', function () {
+                hidden.value = hanyaAngka(display.value);
+            });
+        }
+
+    });
+
+});
+</script>
+<?php $__env->stopPush(); ?>
 
 <?php echo $__env->make('layouts.supervisor', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH D:\laragon\www\E-Teller_3009\E-Teller_1109\vaulty_app_final\resources\views/supervisor/rekonsiliasi.blade.php ENDPATH**/ ?>
