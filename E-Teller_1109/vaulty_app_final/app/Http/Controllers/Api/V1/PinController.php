@@ -31,9 +31,16 @@ class PinController extends Controller
         return DB::transaction(function () use ($pins, $new, $user) {
             $account = Account::where('user_id', $user->id)->lockForUpdate()->firstOrFail();
 
+            if ($account->pin_blocked) {
+                return response()->json([
+                    'message' => 'Akun diblokir karena PIN salah 3 kali. Ajukan buka blokir dan reset PIN melalui aplikasi.',
+                    'code' => 'PIN_BLOCKED',
+                ], 423);
+            }
+
             if ($account->pin_reset_required) {
                 return response()->json([
-                    'message' => 'Pengajuan lupa PIN Anda belum disetujui. Hubungi Teller untuk mengetahui statusnya.',
+                    'message' => 'Pengajuan lupa PIN Anda belum disetujui. Tunggu persetujuan Admin.',
                     'code' => 'PIN_RESET_REQUIRED',
                 ], 423);
             }
@@ -87,7 +94,7 @@ class PinController extends Controller
             if ($check['status'] === 'locked') {
                 return response()->json([
                     'message' => $pins->lockedMessage($check['retry_after']),
-                    'code' => $check['reset_required'] ? 'PIN_RESET_REQUIRED' : 'PIN_LOCKED',
+                    'code' => $check['reset_required'] ? 'PIN_BLOCKED' : 'PIN_LOCKED',
                     'retry_after' => $check['retry_after'],
                 ], 423);
             }
@@ -130,13 +137,14 @@ class PinController extends Controller
             'pin_attempts' => 0,
             'pin_locked_until' => null,
             'pin_reset_required' => false,
+            'pin_blocked' => false,
         ]);
 
         CustomerNotification::create([
             'user_id' => $user->id,
             'title' => 'PIN berhasil diperbarui',
             'message' => 'PIN rekening Anda diperbarui pada ' . now()->format('d/m/Y H:i')
-                . '. Jika bukan Anda yang melakukannya, segera hubungi Teller.',
+                . '. Jika bukan Anda yang melakukannya, segera hubungi petugas.',
             'type' => 'security',
         ]);
     }

@@ -81,6 +81,66 @@ class PinResetService
     * Admin menyetujui. Mengembalikan true bila PIN berhasil direset,
      * false bila pengajuan ternyata sudah kedaluwarsa (ditandai kedaluwarsa).
      */
+    /**
+     * Nasabah mengajukan sendiri reset PIN dari aplikasi mobile.
+     * Admin tetap wajib memverifikasi identitas sebelum menyetujui.
+     */
+    public function requestByCustomer(User $customer, string $nis, ?string $reason = null): CredentialResetRequest
+    {
+        return DB::transaction(function () use ($customer, $nis, $reason) {
+            $account = Account::where('user_id', $customer->id)->lockForUpdate()->first();
+
+            if (!$account) {
+                throw new DomainException('Data rekening tidak ditemukan.');
+            }
+
+            $identifiers = array_filter([
+                $customer->username,
+                $customer->nis,
+                $customer->nisn,
+            ]);
+
+            if (!in_array($nis, $identifiers, true)) {
+                throw new DomainException('NIS tidak sesuai dengan akun yang sedang login.');
+            }
+
+            if ($customer->status !== 'active' || ($account->status !== 'active' && !$account->pin_blocked)) {
+                throw new DomainException('Akun atau rekening Anda sedang tidak aktif. Hubungi Administrator.');
+            }
+
+            $this->expireStale();
+
+            $alreadyOpen = CredentialResetRequest::open()
+                ->where('account_id', $account->id)
+                ->where('type', CredentialResetRequest::TYPE_PIN)
+                ->exists();
+
+            if ($alreadyOpen) {
+                throw new DomainException('Pengajuan lupa PIN Anda masih menunggu persetujuan Admin.');
+            }
+
+            $blocksAccount = (bool) $account->pin_blocked;
+            $note = trim((string) $reason);
+
+            return CredentialResetRequest::create([
+                'account_id' => $account->id,
+                'user_id' => $customer->id,
+                'type' => CredentialResetRequest::TYPE_PIN,
+                'requested_by' => $customer->id,
+                'reason' => $note !== ''
+                    ? $note
+                    : ($blocksAccount
+                        ? 'Nasabah terkunci setelah 3 kali salah PIN dan mengajukan buka blokir + reset PIN.'
+                        : 'Nasabah lupa PIN dan mengajukan reset melalui aplikasi.'),
+                'verification_note' => $blocksAccount
+                    ? 'Pengajuan BUKA BLOKIR + reset PIN dari aplikasi. Administrator wajib memverifikasi identitas nasabah.'
+                    : 'Diajukan sendiri oleh nasabah melalui aplikasi. Administrator wajib memverifikasi identitas sebelum menyetujui.',
+                'status' => CredentialResetRequest::STATUS_PENDING,
+                'expires_at' => now()->addHours(self::EXPIRE_HOURS),
+            ]);
+        });
+    }
+
     public function approve(CredentialResetRequest $request, User $reviewer): bool
     {
         return DB::transaction(function () use ($request, $reviewer) {
@@ -202,12 +262,19 @@ class PinResetService
      */
     private function applyReset(Account $account): void
     {
+        // Blokir karena PIN salah 3x ikut dibuka. Blokir manual oleh Admin
+        // (pin_blocked = false) tidak diubah oleh persetujuan reset PIN.
+        $wasPinBlocked = (bool) $account->pin_blocked;
+        $restoreActive = $wasPinBlocked && $account->status === 'blocked';
+
         $account->update([
             'pin' => Hash::make('123456'),
             'pin_is_default' => true,
             'pin_attempts' => 0,
             'pin_locked_until' => null,
             'pin_reset_required' => false,
+            'pin_blocked' => false,
+            'status' => $restoreActive ? 'active' : $account->status,
         ]);
 
         CustomerNotification::create([

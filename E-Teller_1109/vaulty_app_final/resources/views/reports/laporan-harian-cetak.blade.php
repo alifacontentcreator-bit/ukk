@@ -115,6 +115,9 @@
     $saldoAkhir = $report->saldoAkhirSistem();
     $selisih = $report->selisihKas();
 
+    // Uang fisik dianggap sudah dihitung bila Teller mengisi minimal satu pecahan.
+    $fisikTerhitung = $totalFisik > 0;
+
     // Kas yang sudah diserahkan Teller ke brankas hari itu (bila ada).
     $pengembalian = (float) $report->deposit_total
         - (float) $report->withdrawal_total
@@ -157,17 +160,42 @@
             </tr>
             <tr class="total">
                 <td>Uang fisik di laci</td>
-                <td class="nilai">{{ $rp($totalFisik) }}</td>
+                <td class="nilai">
+                    {{ $fisikTerhitung ? $rp($totalFisik) : 'Belum dihitung' }}
+                </td>
             </tr>
             <tr>
                 <td>Selisih</td>
-                <td class="nilai selisih {{ abs($selisih) >= 0.01 ? 'beda' : '' }}">
-                    {{ abs($selisih) < 0.01 ? $rp(0) : ($selisih > 0 ? '+ ' : '&minus; ') . $rp(abs($selisih)) }}
+                <td class="nilai selisih {{ $fisikTerhitung && abs($selisih) >= 0.01 ? 'beda' : '' }}">
+                    @if(! $fisikTerhitung)
+                        &mdash;
+                    @else
+                        {{ abs($selisih) < 0.01 ? $rp(0) : ($selisih > 0 ? '+ ' : '&minus; ') . $rp(abs($selisih)) }}
+                    @endif
                 </td>
             </tr>
         </tbody>
     </table>
-    <p class="terbilang">Terbilang: {{ $terbilang }}</p>
+    <p class="terbilang">
+        Terbilang: {{ $terbilang }}{{ $fisikTerhitung ? '' : ' (kas akhir sistem)' }}
+    </p>
+
+    @if($fisikTerhitung && $report->catatan_selisih)
+        <p class="terbilang" style="margin-top:4px">
+            Catatan teller: {{ $report->catatan_selisih }}
+        </p>
+    @endif
+
+    @if($fisikTerhitung && $report->transaksiPenjelas->isNotEmpty())
+        <p class="terbilang" style="margin-top:4px">
+            Penjelasan selisih: transaksi hari ini
+            {{ $report->transaksiPenjelas
+                ->map(fn ($trx) => '#' . $trx->id . ' '
+                    . ($trx->type === 'deposit' ? 'Setor tunai' : 'Tarik tunai')
+                    . ' ' . $rp($trx->amount))
+                ->implode(', ') }}
+        </p>
+    @endif
 
     {{-- ============ RINCIAN LEMBARAN: SALDO AWAL ============ --}}
     <h2 class="section">Rincian lembaran: Saldo awal</h2>
@@ -194,10 +222,6 @@
                     <td class="num">{{ $rp($report->saldo_awal) }}</td>
                 </tr>
             @endforelse
-            <tr class="jumlah">
-                <td colspan="2">Total saldo awal</td>
-                <td class="num">{{ $rp($rincianAwal ? $report->totalFisikAwal() : $report->saldo_awal) }}</td>
-            </tr>
         </tbody>
     </table>
 
@@ -224,10 +248,6 @@
                     <td colspan="3" class="empty">Teller belum mengisi rincian lembaran uang fisik.</td>
                 </tr>
             @endforelse
-            <tr class="jumlah">
-                <td colspan="2">Total uang fisik</td>
-                <td class="num">{{ $rp($totalFisik) }}</td>
-            </tr>
         </tbody>
     </table>
 

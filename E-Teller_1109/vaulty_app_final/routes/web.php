@@ -17,7 +17,6 @@ use App\Http\Controllers\AccountingJournalController;
 use App\Http\Controllers\AdminPasswordRecoveryController;
 use App\Http\Controllers\AdminPinResetController;
 use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\PinResetController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\SupervisorDutyController;
 
@@ -464,12 +463,6 @@ Route::middleware('auth')->group(function () {
             Route::get('/petugas/data', [SupervisorDutyController::class, 'officerIndex'])
                 ->name('petugas');
 
-            Route::post('/petugas/data/impor', [SupervisorDutyController::class, 'officerImport'])
-                ->name('petugas.impor');
-
-            Route::get('/petugas/data/export', [SupervisorDutyController::class, 'officerExport'])
-                ->name('petugas.export');
-
 
             // Laporan Harian Teller
             Route::get('/laporan', [ReportController::class, 'index'])
@@ -565,6 +558,10 @@ Route::middleware('auth')->group(function () {
                         ->count(),
                 ];
 
+                // Arsip transaksi paling awal, dipakai sebagai penanda bahwa
+                // riwayat dari dulu sampai sekarang tetap tersimpan.
+                $awalTransaksi = Transaction::min('created_at');
+
                 $transaksi = $query->latest()
                     ->paginate(20)
                     ->withQueryString();
@@ -572,7 +569,8 @@ Route::middleware('auth')->group(function () {
                 return view('supervisor.jurnal', compact(
                     'stats',
                     'tellers',
-                    'transaksi'
+                    'transaksi',
+                    'awalTransaksi'
                 ));
 
             })->name('jurnal');
@@ -683,17 +681,6 @@ Route::middleware('auth')->group(function () {
 
             Route::get('/koreksi/{id}', [TransactionCorrectionController::class, 'show'])
                 ->name('koreksi.show');
-
-
-            // Reset PIN Nasabah
-            Route::get('/reset-pin', [PinResetController::class, 'index'])
-                ->name('reset-pin');
-
-            Route::post('/reset-pin', [PinResetController::class, 'store'])
-                ->name('reset-pin.store');
-
-            Route::post('/reset-pin/{id}/batal', [PinResetController::class, 'cancel'])
-                ->name('reset-pin.cancel');
 
 
             // Absensi Teller

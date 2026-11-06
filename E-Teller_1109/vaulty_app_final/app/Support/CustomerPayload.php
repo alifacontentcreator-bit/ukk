@@ -30,7 +30,6 @@ class CustomerPayload
                 'photo_url' => $user->photo
                     ? asset('storage/' . ltrim($user->photo, '/'))
                     : null,
-                'no_telp' => $user->no_telp,
                 'alamat' => $user->alamat,
                 'nis' => $user->nis,
                 'kelas' => $user->kelas,
@@ -46,6 +45,7 @@ class CustomerPayload
                 'status' => $account->status,
                 'pin_is_default' => (bool) $account->pin_is_default,
                 'pin_reset_required' => (bool) $account->pin_reset_required,
+                'pin_blocked' => (bool) $account->pin_blocked,
                 // URL yang di-encode menjadi QR identitas nasabah (sama dengan
                 // QR yang dicetak admin) agar bisa ditampilkan di aplikasi mobile.
                 'qr_url' => $qrUrl,

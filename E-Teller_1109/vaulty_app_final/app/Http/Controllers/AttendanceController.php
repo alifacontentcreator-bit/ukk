@@ -32,13 +32,12 @@ class AttendanceController extends Controller
             ->whereDate('duty_date', today())
             ->get();
 
-        // Jadwal 7 hari ke depan, dihitung dari hari pada template mingguan.
+        // Jadwal 7 hari ke depan mengikuti template mingguan. Sabtu & Minggu
+        // dilewati karena jadwal masuk sekolah hanya Senin–Jumat.
         $jadwalMendatang = collect(range(1, 7))
-            ->flatMap(function (int $i) use ($userId) {
-                $tanggal = today()->addDays($i);
-
-                return DutyWeeklySchedule::forDate($tanggal, $userId);
-            })
+            ->map(fn (int $i) => today()->addDays($i))
+            ->filter(fn ($tanggal) => $tanggal->dayOfWeekIso <= DutyWeeklySchedule::HARI_TERAKHIR)
+            ->flatMap(fn ($tanggal) => DutyWeeklySchedule::forDate($tanggal, $userId))
             ->sortBy(fn ($j) => $j->duty_date->timestamp)
             ->values();
 

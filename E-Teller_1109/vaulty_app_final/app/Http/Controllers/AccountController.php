@@ -91,8 +91,9 @@ class AccountController extends Controller
     }
 
     /**
-     * Reset DARURAT oleh admin. Reset PIN normal dilakukan teller + persetujuan supervisor
-     * (lihat PinResetController). Jalur ini wajib alasan dan tercatat di credential_reset_requests.
+     * Reset DARURAT oleh admin. Reset PIN normal diajukan nasabah dari aplikasi
+     * dan disetujui di halaman Admin > Reset PIN. Jalur ini wajib alasan dan
+     * tetap tercatat di credential_reset_requests.
      */
     public function resetPin(Request $request, Account $account, PinResetService $resets)
     {

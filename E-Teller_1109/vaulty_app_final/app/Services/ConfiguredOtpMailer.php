@@ -44,6 +44,23 @@ class ConfiguredOtpMailer
         ));
     }
 
+    public function sendCustomerPasswordResetCode(
+        string $recipient,
+        string $name,
+        string $resetCode
+    ): void {
+        $this->deliver($recipient, new SystemNotification(
+            subjectLine: 'Kode OTP lupa password ' . self::DEFAULT_FROM_NAME,
+            title: 'Kode OTP lupa password',
+            paragraphs: [
+                'Halo ' . $name . ',',
+                'Kami menerima permintaan untuk mengatur ulang password akun tabungan Anda. Masukkan kode OTP berikut pada aplikasi.',
+            ],
+            highlight: $resetCode,
+            note: 'Kode berlaku selama 3 menit dan hanya dapat digunakan satu kali. Jangan berikan kode ini kepada siapa pun, termasuk pihak yang mengaku sebagai petugas. Bila Anda tidak meminta perubahan password, abaikan email ini dan password lama tetap berlaku.',
+        ));
+    }
+
     public function sendPasswordResetLink(string $recipient, string $name, string $url): void
     {
         $this->deliver($recipient, new SystemNotification(

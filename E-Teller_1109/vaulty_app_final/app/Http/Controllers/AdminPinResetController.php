@@ -40,10 +40,10 @@ class AdminPinResetController extends Controller
         }
 
         if (!$approved) {
-            return back()->withErrors(['reset_pin' => 'Pengajuan sudah kedaluwarsa. Minta teller mengajukan ulang.']);
+            return back()->withErrors(['reset_pin' => 'Pengajuan sudah kedaluwarsa. Minta nasabah mengajukan ulang dari aplikasi.']);
         }
 
-        return back()->with('success', 'Pengajuan disetujui. PIN sementara nasabah diubah menjadi 123456 dan notifikasi telah dikirim.');
+        return back()->with('success', 'Pengajuan lupa/buka blokir PIN disetujui. Blokir PIN dibuka dan nasabah akan diminta membuat PIN baru melalui aplikasi.');
     }
 
     public function reject(int $id, Request $request, PinResetService $resets)
@@ -58,6 +58,6 @@ class AdminPinResetController extends Controller
             return back()->withErrors(['reset_pin' => $exception->getMessage()]);
         }
 
-        return back()->with('success', 'Pengajuan reset PIN ditolak.');
+        return back()->with('success', 'Pengajuan lupa PIN ditolak. Nasabah akan menerima alasan penolakan di aplikasi.');
     }
 }

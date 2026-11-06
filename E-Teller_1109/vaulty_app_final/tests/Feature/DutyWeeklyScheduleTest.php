@@ -110,6 +110,9 @@ class DutyWeeklyScheduleTest extends TestCase
             ->assertSee('Rabu')
             ->assertSee('Kamis')
             ->assertSee('Jumat')
+            // Sabtu & Minggu tidak ada (sekolah libur).
+            ->assertDontSee('>Sabtu<', false)
+            ->assertDontSee('>Minggu<', false)
             ->assertSee('Budi Teller')
             ->assertSee('X TKJ 1')
             ->assertSee('berlaku setiap minggu');
@@ -167,6 +170,47 @@ class DutyWeeklyScheduleTest extends TestCase
             'duty_shift_id' => $shift->id,
             'status' => 'hadir',
         ]);
+    }
+
+    public function test_hari_sabtu_dan_minggu_tidak_bisa_dijadwalkan(): void
+    {
+        $shift = $this->shift();
+
+        foreach ([6, 7] as $hari) {
+            $this->actingAs($this->supervisor)
+                ->post(route('supervisor.jadwal.store'), [
+                    'hari' => $hari,
+                    'duty_shift_id' => $shift->id,
+                    'petugas' => [$this->teller->id],
+                ])
+                ->assertSessionHasErrors('hari');
+        }
+
+        $this->assertDatabaseCount('duty_weekly_schedules', 0);
+    }
+
+    public function test_jadwal_weekend_tidak_dipakai_untuk_absensi(): void
+    {
+        // 07 November 2026 = Sabtu (jadwal sekolah libur).
+        $this->travelTo(Carbon::parse('2026-11-07 08:00:00'));
+
+        $shift = $this->shift();
+
+        // Data lama hari Sabtu (bila masih tersisa) tidak boleh dipakai.
+        DutyWeeklySchedule::create([
+            'day_of_week' => 6,
+            'duty_shift_id' => $shift->id,
+            'user_id' => $this->teller->id,
+            'created_by' => $this->supervisor->id,
+        ]);
+
+        $this->assertCount(0, DutyWeeklySchedule::forActiveDate(today(), $this->teller->id));
+
+        $this->actingAs($this->teller)
+            ->get(route('teller.absensi'))
+            ->assertOk()
+            ->assertSee('Tidak ada jadwal')
+            ->assertDontSee($shift->label());
     }
 
     public function test_supervisor_menghapus_petugas_dari_jadwal(): void

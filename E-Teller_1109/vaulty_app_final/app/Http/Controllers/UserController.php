@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Models\Account;
 use App\Services\AccountNumberGenerator;
-use App\Services\PetugasSheet;
+use App\Services\ExcelExport;
 use Illuminate\Http\Request;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -50,7 +50,7 @@ class UserController extends Controller
             $query->where('role', $filters['role']);
         }
 
-        $users = $query->get();
+        $users = $query->with('account')->get();
 
         return view('admin.users.index', compact('users', 'filters'));
     }
@@ -85,7 +85,6 @@ class UserController extends Controller
             $nis = trim((string) ($row[$columns['nis']] ?? ''));
             $classLabel = $this->normalizeStudentClass((string) ($row[$columns['class']] ?? ''));
             $email = mb_strtolower(trim((string) ($row[$columns['email']] ?? '')));
-            $phone = isset($columns['phone']) ? trim((string) ($row[$columns['phone']] ?? '')) : null;
 
             if ($name === '' && $nis === '' && $classLabel === '' && $email === '') {
                 continue;
@@ -130,7 +129,7 @@ class UserController extends Controller
             }
 
             try {
-                DB::transaction(function () use ($name, $nis, $email, $phone, $classAttrs): void {
+                DB::transaction(function () use ($name, $nis, $email, $classAttrs): void {
                     $accountNumber = AccountNumberGenerator::generate(
                         $classAttrs['jurusan'],
                         $classAttrs['angkatan'],
@@ -150,7 +149,6 @@ class UserController extends Controller
                         'kelas_urut' => $classAttrs['kelas_urut'],
                         'angkatan' => $classAttrs['angkatan'],
                         'email' => $email,
-                        'no_telp' => $phone ?: null,
                     ]);
 
                     $user->forceFill(['must_change_password' => true])->save();
@@ -178,13 +176,13 @@ class UserController extends Controller
             ->with('success', $result['created'] . ' akun siswa dibuat dan menunggu aktivasi.');
     }
 
-    public function studentImportTemplate(PetugasSheet $sheet)
+    public function studentImportTemplate(ExcelExport $excel)
     {
         $this->authorize('manage', User::class);
 
-        return $sheet->download(
+        return $excel->download(
             'template-impor-siswa.xlsx',
-            ['Nama', 'NIS', 'Kelas', 'Email', 'No. Telepon'],
+            ['Nama', 'NIS', 'Kelas', 'Email'],
             [],
             'Impor Siswa'
         );
@@ -201,7 +199,6 @@ class UserController extends Controller
                 elseif (!isset($columns['nis']) && $header === 'nis') $columns['nis'] = $column;
                 elseif (!isset($columns['class']) && str_starts_with($header, 'kelas')) $columns['class'] = $column;
                 elseif (!isset($columns['email']) && str_contains($header, 'email')) $columns['email'] = $column;
-                elseif (!isset($columns['phone']) && (str_contains($header, 'telp') || str_contains($header, 'telepon') || str_contains($header, 'hp'))) $columns['phone'] = $column;
             }
 
             if (isset($columns['name'], $columns['nis'], $columns['class'], $columns['email'])) {
@@ -209,7 +206,7 @@ class UserController extends Controller
             }
         }
 
-        throw new \DomainException('Header wajib: Nama, NIS, Kelas, dan Email. Kolom No. Telepon bersifat opsional.');
+        throw new \DomainException('Header wajib: Nama, NIS, Kelas, dan Email.');
     }
 
     private function normalizeStudentClass(string $class): string
@@ -243,7 +240,6 @@ class UserController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'role' => ['required', 'in:admin,supervisor,teller,customer'],
             'email' => ['nullable', 'email', 'max:255', 'unique:users,email'],
-            'no_telp' => ['nullable', 'string', 'max:20', 'unique:users,no_telp'],
             'photo' => [
                 'nullable',
                 'file',
@@ -349,7 +345,6 @@ class UserController extends Controller
 
         $request->validate($rules, [
             'email.unique' => 'Email ini sudah digunakan oleh pengguna lain.',
-            'no_telp.unique' => 'Nomor telepon ini sudah digunakan oleh pengguna lain.',
             'nis.unique' => 'Nomor induk siswa ini sudah digunakan oleh pengguna lain.',
             'nis.digits' => 'Nomor induk siswa wajib terdiri dari tepat 5 angka.',
             'nip.unique' => 'Nomor induk pegawai ini sudah digunakan oleh pengguna lain.',
@@ -420,7 +415,6 @@ class UserController extends Controller
                     'angkatan' => $classAttrs['angkatan'],
 
                     'email' => $request->email,
-                    'no_telp' => $request->no_telp,
                     'photo' => $photoPath,
                 ]);
 
@@ -498,7 +492,6 @@ class UserController extends Controller
                     'jabatan' => $request->jabatan,
 
                     'email' => $request->email,
-                    'no_telp' => $request->no_telp,
                     'photo' => $photoPath,
                 ]);
 
@@ -581,7 +574,6 @@ class UserController extends Controller
                     : null,
 
                 'email' => $request->email,
-                'no_telp' => $request->no_telp,
                 'photo' => $photoPath,
             ]);
 
@@ -657,13 +649,6 @@ class UserController extends Controller
                 'unique:users,email,' . $user->id,
             ],
 
-            'no_telp' => [
-                'nullable',
-                'string',
-                'max:20',
-                'unique:users,no_telp,' . $user->id,
-            ],
-
             'nip' => [
                 $request->role === 'supervisor' ? 'required' : 'nullable',
                 'string',
@@ -692,7 +677,6 @@ class UserController extends Controller
             ],
         ], [
             'email.unique' => 'Email ini sudah digunakan oleh pengguna lain.',
-            'no_telp.unique' => 'Nomor telepon ini sudah digunakan oleh pengguna lain.',
             'nis.unique' => 'Nomor induk siswa ini sudah digunakan oleh pengguna lain.',
             'nis.digits' => 'Nomor induk siswa wajib terdiri dari tepat 5 angka.',
             'nip.unique' => 'Nomor induk pegawai ini sudah digunakan oleh pengguna lain.',
@@ -704,7 +688,6 @@ class UserController extends Controller
             'username' => $request->username,
             'role' => $request->role,
             'email' => $request->email,
-            'no_telp' => $request->no_telp,
 
             'nis' => $request->role === 'teller'
                 ? $request->nis
@@ -754,7 +737,7 @@ class UserController extends Controller
     }
 
     /**
-     * Blokir atau aktifkan pengguna.
+     * Nonaktifkan atau aktifkan kembali pengguna.
      */
     public function toggleStatus(User $user)
     {
@@ -762,19 +745,18 @@ class UserController extends Controller
 
         if ($user->id === auth()->id()) {
             return back()->withErrors([
-                'error' => 'Akses ditolak: Anda tidak dapat memblokir akun Anda sendiri.',
+                'error' => 'Akses ditolak: Anda tidak dapat menonaktifkan akun Anda sendiri.',
             ]);
         }
 
-        $user->status = $user->status === 'blocked'
-            ? 'active'
-            : 'blocked';
+        // Status apa pun yang bukan "active" (mis. blocked/inactive) dianggap nonaktif.
+        $user->status = $user->status === 'active' ? 'blocked' : 'active';
 
         $user->save();
 
-        $keterangan = $user->status === 'blocked'
-            ? 'DIBLOKIR'
-            : 'DIAKTIFKAN';
+        $keterangan = $user->status === 'active'
+            ? 'DIAKTIFKAN KEMBALI'
+            : 'DINONAKTIFKAN';
 
         return back()->with(
             'success',
@@ -783,7 +765,7 @@ class UserController extends Controller
     }
 
     /**
-     * Menghapus pengguna.
+     * Menghapus pengguna staf, atau menonaktifkan akun nasabah.
      */
     public function destroy(User $user)
     {
@@ -796,9 +778,30 @@ class UserController extends Controller
         }
 
         /*
+         * AKUN NASABAH TIDAK PERNAH DIHAPUS.
+         * Nasabah yang sudah lulus (alumni) cukup dinonaktifkan supaya rekening,
+         * saldo, dan seluruh riwayat transaksi tetap utuh. Dengan begitu Jurnal
+         * Audit Supervisor tetap memuat transaksi dari dulu sampai sekarang.
+         */
+        if ($user->role === 'customer') {
+            $sudahNonaktif = $user->status !== 'active';
+
+            if (!$sudahNonaktif) {
+                $user->forceFill(['status' => 'blocked'])->save();
+            }
+
+            return back()->with(
+                'success',
+                $sudahNonaktif
+                    ? "Akun nasabah {$user->name} sudah nonaktif. Data dan riwayat transaksinya tetap tersimpan."
+                    : "Akun nasabah {$user->name} dinonaktifkan (tidak dihapus). Riwayat transaksi tetap tersimpan."
+            );
+        }
+
+        /*
          * Transaksi, laporan harian, dan koreksi memakai foreign key RESTRICT
          * agar jejak audit tidak ikut terhapus. Tolak lebih awal supaya admin
-         * tidak melihat error SQL 1451, dan arahkan ke fitur blokir.
+         * tidak melihat error SQL 1451, dan arahkan ke fitur nonaktifkan.
          */
         $blockers = $user->deletionBlockers();
 
@@ -806,7 +809,7 @@ class UserController extends Controller
             return back()->withErrors([
                 'error' => sprintf(
                     'Pengguna %s tidak dapat dihapus karena masih memiliki %s. '
-                    . 'Jejak transaksi dan audit wajib dipertahankan; gunakan tombol blokir bila akun ini sudah tidak dipakai.',
+                    . 'Jejak transaksi dan audit wajib dipertahankan; gunakan tombol nonaktifkan bila akun ini sudah tidak dipakai.',
                     $user->name,
                     implode(', ', $blockers)
                 ),

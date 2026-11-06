@@ -25,4 +25,5 @@ class Transaction extends Model
     public function account(){ return $this->belongsTo(Account::class); }
     public function teller(){ return $this->belongsTo(User::class, 'user_id'); }
     public function supervisor(){ return $this->belongsTo(User::class, 'approved_by'); }
+    public function correction(){ return $this->hasOne(TransactionCorrection::class, 'transaction_id'); }
 }

@@ -75,7 +75,7 @@
         <div class="section-head">
             <div>
                 <div class="section-title">Daftar Pengguna</div>
-                <div class="section-sub">{{ $users->count() }} akun &middot; admin, supervisor, teller, dan nasabah</div>
+                <div class="section-sub">{{ $users->count() }} akun &middot; admin, supervisor, teller, dan nasabah. Akun nasabah tidak dapat dihapus permanen &mdash; nonaktifkan saja agar riwayat transaksinya tetap tersimpan.</div>
             </div>
             <span class="badge badge-outline">{{ $users->count() }} akun</span>
         </div>
@@ -94,7 +94,11 @@
                 </thead>
                 <tbody>
                     @forelse($users as $user)
-                        <tr @class(['is-blocked' => $user->status === 'blocked'])>
+                        @php($pinBlocked = (bool) $user->account?->pin_blocked)
+                        @php($labelAksi = $user->status === 'active'
+                            ? ($user->role === 'customer' ? 'Nonaktifkan' : 'Blokir')
+                            : ($user->role === 'customer' ? 'Aktifkan kembali' : 'Buka blokir'))
+                        <tr @class(['is-blocked' => $user->status !== 'active' || $pinBlocked])>
                             <td class="nw muted">{{ str_pad($user->id, 3, '0', STR_PAD_LEFT) }}</td>
                             <td class="nw">{{ $user->kelas ?: '-' }}</td>
                             <td class="nw muted">{{ $user->nis ?? $user->nip ?? '-' }}</td>
@@ -119,27 +123,33 @@
                                 </span>
                             </td>
                             <td>
-                                <span class="badge {{ $user->status === 'active' ? 'badge-ok' : 'badge-danger' }}">
-                                    {{ $user->status === 'active' ? 'Aktif' : 'Diblokir' }}
+                                <span class="badge {{ $user->status === 'active' && !$pinBlocked ? 'badge-ok' : 'badge-danger' }}">
+                                    {{ $user->status !== 'active' ? 'Nonaktif' : ($pinBlocked ? 'Blokir (PIN)' : 'Aktif') }}
                                 </span>
                             </td>
                             <td>
                                 <div class="actions end">
                                     <a class="icon-btn" href="{{ route('admin.users.edit', $user) }}" title="Ubah {{ $user->name }}" aria-label="Ubah {{ $user->name }}"><x-icon name="pencil" /></a>
                                     @if($user->id !== auth()->id())
-                                        <form method="POST" action="{{ route('admin.users.toggle-status', $user) }}" onsubmit="return confirm('Anda yakin ingin {{ $user->status === 'active' ? 'memblokir' : 'membuka blokir' }} akun {{ $user->name }}?')">
-                                            @csrf
-                                            <button class="icon-btn {{ $user->status === 'active' ? 'is-danger' : '' }}" type="submit"
-                                                    title="{{ $user->status === 'active' ? 'Blokir' : 'Buka blokir' }} {{ $user->name }}"
-                                                    aria-label="{{ $user->status === 'active' ? 'Blokir' : 'Buka blokir' }} {{ $user->name }}">
-                                                <x-icon :name="$user->status === 'active' ? 'lock' : 'unlock'" />
-                                            </button>
-                                        </form>
-                                        <form method="POST" action="{{ route('admin.users.destroy', $user) }}" onsubmit="return confirm('Hapus permanen akun {{ $user->name }}? Tindakan ini tidak bisa dibatalkan. Akun yang memiliki riwayat transaksi atau laporan tidak dapat dihapus.')">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button class="icon-btn is-danger" type="submit" title="Hapus {{ $user->name }}" aria-label="Hapus {{ $user->name }}"><x-icon name="trash" /></button>
-                                        </form>
+                                        @if($pinBlocked && $user->status === 'active')
+                                            <a class="icon-btn" href="{{ route('admin.reset-pin') }}" title="Diblokir karena PIN salah 3x. Setujui pengajuan buka blokir + reset PIN di menu Reset PIN." aria-label="Diblokir karena PIN salah 3x. Buka menu Reset PIN."><x-icon name="lock" /></a>
+                                        @else
+                                            <form method="POST" action="{{ route('admin.users.toggle-status', $user) }}" onsubmit="return confirm('Anda yakin ingin {{ strtolower($labelAksi) }} akun {{ $user->name }}?')">
+                                                @csrf
+                                                <button class="icon-btn {{ $user->status === 'active' ? 'is-danger' : '' }}" type="submit"
+                                                        title="{{ $labelAksi }} {{ $user->name }}"
+                                                        aria-label="{{ $labelAksi }} {{ $user->name }}">
+                                                    <x-icon :name="$user->status === 'active' ? 'lock' : 'unlock'" />
+                                                </button>
+                                            </form>
+                                        @endif
+                                        @if($user->role !== 'customer')
+                                            <form method="POST" action="{{ route('admin.users.destroy', $user) }}" onsubmit="return confirm('Hapus permanen akun {{ $user->name }}? Tindakan ini tidak bisa dibatalkan. Akun yang memiliki riwayat transaksi atau laporan tidak dapat dihapus.')">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button class="icon-btn is-danger" type="submit" title="Hapus {{ $user->name }}" aria-label="Hapus {{ $user->name }}"><x-icon name="trash" /></button>
+                                            </form>
+                                        @endif
                                     @else
                                         <span class="muted" style="font-size:11px">akun Anda</span>
                                     @endif

@@ -23,7 +23,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * supaya tidak bisa diisi lewat request. Ubah lewat forceFill() di kode server.
  */
 #[Fillable([
-    'name', 'username', 'password', 'role', 'status', 'email', 'no_telp', 'alamat',
+    'name', 'username', 'password', 'role', 'status', 'email', 'alamat',
     'nis', 'kelas', 'jurusan', 'tingkat', 'kelas_urut', 'angkatan',
     'nip', 'jabatan', 'photo',
 ])]

@@ -33,7 +33,6 @@ class ProfileTest extends TestCase
             $table->string('password');
             $table->string('role');
             $table->string('email')->nullable()->unique();
-            $table->string('no_telp', 20)->nullable();
             $table->string('nis', 30)->nullable();
             $table->string('nip', 30)->nullable();
             $table->string('kelas', 30)->nullable();

@@ -41,7 +41,6 @@ class AdminUserDeletionTest extends TestCase
             $table->string('password');
             $table->string('role');
             $table->string('email')->nullable()->unique();
-            $table->string('no_telp', 20)->nullable();
             $table->string('nis', 30)->nullable();
             $table->string('nip', 30)->nullable();
             $table->string('alamat')->nullable();
@@ -75,7 +74,7 @@ class AdminUserDeletionTest extends TestCase
         });
     }
 
-    public function test_customer_with_transaction_history_cannot_be_deleted(): void
+    public function test_customer_dengan_riwayat_transaksi_dinonaktifkan_bukan_dihapus(): void
     {
         $admin = $this->createUser('Administrator', 'admin', 'admin');
         $customer = $this->createUser('Nasabah Lama', '12345', 'customer');
@@ -96,13 +95,11 @@ class AdminUserDeletionTest extends TestCase
         $response = $this->actingAs($admin)
             ->delete(route('admin.users.destroy', $customer));
 
-        $response->assertSessionHasErrors('error');
-        $this->assertStringContainsString(
-            'riwayat transaksi rekening',
-            session('errors')->first('error')
-        );
+        // Nasabah tidak pernah dihapus permanen: cukup dinonaktifkan.
+        $response->assertSessionHasNoErrors();
+        $response->assertSessionHas('success');
 
-        $this->assertDatabaseHas('users', ['id' => $customer->id]);
+        $this->assertDatabaseHas('users', ['id' => $customer->id, 'status' => 'blocked']);
         $this->assertDatabaseHas('accounts', ['id' => $accountId]);
         $this->assertDatabaseHas('transactions', ['transaction_code' => 'TRX-TEST-0001']);
     }
@@ -138,7 +135,7 @@ class AdminUserDeletionTest extends TestCase
         $this->assertDatabaseHas('users', ['id' => $teller->id]);
     }
 
-    public function test_user_without_operational_history_can_be_deleted(): void
+    public function test_customer_tanpa_riwayat_tetap_dinonaktifkan_bukan_dihapus(): void
     {
         $admin = $this->createUser('Administrator', 'admin', 'admin');
         $customer = $this->createUser('Nasabah Baru', '99999', 'customer');
@@ -149,7 +146,21 @@ class AdminUserDeletionTest extends TestCase
         $response->assertSessionHasNoErrors();
         $response->assertSessionHas('success');
 
-        $this->assertDatabaseMissing('users', ['id' => $customer->id]);
+        $this->assertDatabaseHas('users', ['id' => $customer->id, 'status' => 'blocked']);
+    }
+
+    public function test_staff_tanpa_riwayat_operasional_boleh_dihapus(): void
+    {
+        $admin = $this->createUser('Administrator', 'admin', 'admin');
+        $teller = $this->createUser('Teller Baru', 'teller02', 'teller');
+
+        $response = $this->actingAs($admin)
+            ->delete(route('admin.users.destroy', $teller));
+
+        $response->assertSessionHasNoErrors();
+        $response->assertSessionHas('success');
+
+        $this->assertDatabaseMissing('users', ['id' => $teller->id]);
     }
 
     public function test_admin_cannot_delete_their_own_account(): void

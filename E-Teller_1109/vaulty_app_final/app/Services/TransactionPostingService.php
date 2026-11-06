@@ -58,7 +58,8 @@ class TransactionPostingService
         User $teller,
         string $type,
         float $amount,
-        ?string $description = null
+        ?string $description = null,
+        ?string $referenceNumber = null
     ): Transaction {
         // Memastikan laporan harian masih terbuka.
         $report = $this->assertDayOpen($teller);
@@ -135,7 +136,8 @@ class TransactionPostingService
         $transaction = Transaction::create([
             'daily_report_id' => $report?->id,
             'transaction_code' => 'TRX-' . strtoupper(Str::random(10)),
-            'reference_number' => 'REF' . now()->format('ymd') . strtoupper(Str::random(6)),
+            'reference_number' => $referenceNumber
+                ?: 'REF' . now()->format('ymd') . strtoupper(Str::random(6)),
             'account_id' => $account->id,
             'user_id' => $teller->id,
             'type' => $type,

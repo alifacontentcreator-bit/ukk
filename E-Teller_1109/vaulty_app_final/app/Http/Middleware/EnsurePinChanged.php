@@ -24,9 +24,16 @@ class EnsurePinChanged
             ], 403);
         }
 
+        if ($account && $account->pin_blocked) {
+            return response()->json([
+                'message' => 'Akun diblokir karena PIN salah 3 kali. Ajukan buka blokir dan reset PIN melalui aplikasi.',
+                'code' => 'PIN_BLOCKED',
+            ], 423);
+        }
+
         if ($account && $account->pin_reset_required) {
             return response()->json([
-                'message' => 'PIN terkunci setelah 3 kali salah. Ajukan reset PIN kepada Teller.',
+                'message' => 'PIN terkunci setelah 3 kali salah. Ajukan buka blokir dan reset PIN melalui aplikasi.',
                 'code' => 'PIN_RESET_REQUIRED',
             ], 423);
         }

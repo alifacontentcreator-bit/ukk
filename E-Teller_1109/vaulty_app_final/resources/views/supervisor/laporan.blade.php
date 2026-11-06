@@ -96,8 +96,8 @@
 
         @php
             /*
-             * Total fisik hanya berasal dari seluruh pecahan uang yang
-             * dihitung Teller (Rp100.000, Rp50.000, Rp20.000, Rp5.000).
+             * Total fisik berasal dari seluruh pecahan uang yang dihitung
+             * Teller (Rp100.000 sampai dengan Rp50, lembar maupun keping).
              *
              * Saldo awal tidak ditambahkan lagi karena pecahan sudah
              * menghitung seluruh uang di laci.
@@ -155,21 +155,38 @@
                     </div>
 
                     <div class="kv-row">
-                        <span>Setoran masuk</span>
+                        <span>Setoran masuk ({{ $report->setoran_count ?? 0 }} transaksi)</span>
                         <b class="is-ok">
                             + {{ $rp($report->deposit_total) }}
                         </b>
                     </div>
 
                     <div class="kv-row">
-                        <span>Penarikan keluar</span>
+                        <span>Penarikan keluar ({{ $report->penarikan_count ?? 0 }} transaksi)</span>
                         <b class="is-bad">
                             - {{ $rp($report->withdrawal_total) }}
                         </b>
                     </div>
 
+                    <div class="kv-row">
+                        <span>Perubahan kas bersih</span>
+                        <b>
+                            @if($report->perubahanKasBersih() > 0)
+                                + {{ $rp($report->perubahanKasBersih()) }}
+                            @elseif($report->perubahanKasBersih() < 0)
+                                - {{ $rp(abs($report->perubahanKasBersih())) }}
+                            @else
+                                {{ $rp(0) }}
+                            @endif
+                        </b>
+                    </div>
+
+                    <p class="sub" style="margin:0 0 8px;color:var(--faint)">
+                        {{ $report->keteranganPerubahanKas() }}
+                    </p>
+
                     <div class="kv-row kv-total">
-                        <span>Total kas seharusnya</span>
+                        <span>Kas seharusnya</span>
                         <b>{{ $rp($totalSistem) }}</b>
                     </div>
                 </div>
@@ -178,61 +195,22 @@
                 <div class="report-col">
                     <h3>Uang Fisik di Laci</h3>
 
-                    <div class="kv-row">
-                        <span>Uang Rp100.000</span>
-                        <b>
-                            {{ $report->pecahan_100k }} lembar
-                        </b>
-                    </div>
+                    @forelse($report->rincianFisik() as $baris)
+                        <div class="kv-row">
+                            <span>Uang {{ $rp($baris['nominal']) }}</span>
+                            <b>{{ $baris['jumlah'] }} {{ $baris['satuan'] }}</b>
+                        </div>
 
-                    <div class="kv-row">
-                        <span>Nilai pecahan Rp100.000</span>
-                        <b>
-                            {{ $rp($report->pecahan_100k * 100000) }}
-                        </b>
-                    </div>
-
-                    <div class="kv-row">
-                        <span>Uang Rp50.000</span>
-                        <b>
-                            {{ $report->pecahan_50k }} lembar
-                        </b>
-                    </div>
-
-                    <div class="kv-row">
-                        <span>Nilai pecahan Rp50.000</span>
-                        <b>
-                            {{ $rp($report->pecahan_50k * 50000) }}
-                        </b>
-                    </div>
-
-                    <div class="kv-row">
-                        <span>Uang Rp20.000</span>
-                        <b>
-                            {{ $report->pecahan_20k }} lembar
-                        </b>
-                    </div>
-
-                    <div class="kv-row">
-                        <span>Nilai pecahan Rp20.000</span>
-                        <b>
-                            {{ $rp($report->pecahan_20k * 20000) }}
-                        </b>
-                    </div>
-
-                    <div class="kv-row">
-                        <span>Uang Rp5.000</span>
-                        <b>
-                            {{ $report->pecahan_5k }} lembar
-                        </b>
-                    </div>
-
-                    <div class="kv-row">
-                        <span>Nilai pecahan Rp5.000</span>
-                        <b>
-                            {{ $rp($report->pecahan_5k * 5000) }}
-                        </b>
-                    </div>
+                        <div class="kv-row">
+                            <span>Nilai pecahan {{ $rp($baris['nominal']) }}</span>
+                            <b>{{ $rp($baris['total']) }}</b>
+                        </div>
+                    @empty
+                        <div class="kv-row">
+                            <span>Rincian lembaran</span>
+                            <b>Belum diisi Teller</b>
+                        </div>
+                    @endforelse
 
                     <div class="kv-row kv-total">
                         <span>Total uang fisik</span>
@@ -241,6 +219,29 @@
                 </div>
 
             </div>
+
+            {{-- PENJELASAN SELISIH KAS --}}
+            @if($report->transaksiPenjelas->isNotEmpty())
+                <div style="border-top:1px solid var(--line-2);padding:12px 16px">
+                    <strong>Penjelasan selisih kas dari Teller</strong>
+
+                    <p class="sub" style="margin:4px 0 0">
+                        Transaksi hari ini yang dipilih Teller sebagai penyebab perbedaan uang fisik:
+                    </p>
+
+                    <ul class="sub" style="margin:6px 0 0 16px;padding:0">
+                        @foreach($report->transaksiPenjelas as $trx)
+                            <li>
+                                #{{ $trx->id }} &middot;
+                                {{ $trx->created_at?->format('H:i') }} &middot;
+                                {{ $trx->type === 'deposit' ? 'Setor tunai' : 'Tarik tunai' }} &middot;
+                                {{ $trx->account->user->name ?? 'Nasabah' }} &middot;
+                                <b>{{ $rp($trx->amount) }}</b>
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
 
             {{-- ALASAN PENOLAKAN --}}
             @if($report->status === 'rejected' && $report->rejected_reason)
@@ -267,14 +268,20 @@
                         </strong>
                     @else
                         <strong class="is-bad">
-                            Selisih {{ $selisih > 0 ? '+' : '-' }}
+                            Selisih {{ $selisih > 0 ? 'Lebih' : 'Kurang' }}
                             {{ $rp(abs($selisih)) }}
                         </strong>
 
                         <small>
                             Laporan belum dapat disetujui karena
-                            jumlah kas fisik dan sistem berbeda.
+                            jumlah kas fisik dan kas seharusnya berbeda.
                         </small>
+
+                        @if($report->catatan_selisih)
+                            <p class="sub" style="margin:6px 0 0">
+                                <b>Catatan teller:</b> {{ $report->catatan_selisih }}
+                            </p>
+                        @endif
                     @endif
                 </div>
 

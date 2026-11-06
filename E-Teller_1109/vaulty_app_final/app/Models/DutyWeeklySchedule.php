@@ -19,6 +19,9 @@ class DutyWeeklySchedule extends Model
     /**
      * Daftar hari yang dipakai pada halaman Jadwal Jaga.
      *
+     * Hanya Senin–Jumat karena jadwal masuk sekolah berakhir hari Jumat;
+     * Sabtu dan Minggu tidak dijadwalkan.
+     *
      * @var array<int, string>
      */
     public const HARI = [
@@ -27,9 +30,12 @@ class DutyWeeklySchedule extends Model
         3 => 'Rabu',
         4 => 'Kamis',
         5 => 'Jumat',
-        6 => 'Sabtu',
-        7 => 'Minggu',
     ];
+
+    /**
+     * Hari terakhir yang memiliki jadwal jaga (Jumat).
+     */
+    public const HARI_TERAKHIR = 5;
 
     protected $fillable = [
         'duty_shift_id',
@@ -75,6 +81,11 @@ class DutyWeeklySchedule extends Model
      */
     public static function forDate(CarbonInterface $date, ?int $userId = null): Collection
     {
+        // Sabtu & Minggu tidak ada jadwal jaga (sekolah libur).
+        if ($date->dayOfWeekIso > self::HARI_TERAKHIR) {
+            return collect();
+        }
+
         return static::with(['shift', 'user'])
             ->when($userId, fn ($q) => $q->where('user_id', $userId))
             ->where('day_of_week', $date->dayOfWeekIso)

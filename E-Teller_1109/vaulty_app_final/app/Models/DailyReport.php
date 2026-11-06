@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class DailyReport extends Model
@@ -16,19 +17,34 @@ class DailyReport extends Model
         'pecahan_100k',
         'pecahan_50k',
         'pecahan_20k',
+        'pecahan_10k',
         'pecahan_5k',
+        'pecahan_2k',
+        'pecahan_1k',
+        'pecahan_500',
+        'pecahan_100',
+        'pecahan_50',
 
         // Rincian lembaran saldo awal (modal yang diterima Teller)
         'pecahan_awal_100k',
         'pecahan_awal_50k',
         'pecahan_awal_20k',
+        'pecahan_awal_10k',
         'pecahan_awal_5k',
+        'pecahan_awal_2k',
+        'pecahan_awal_1k',
+        'pecahan_awal_500',
+        'pecahan_awal_100',
+        'pecahan_awal_50',
 
         // Rekap transaksi
         'deposit_total',
         'withdrawal_total',
         'transaction_count',
         'expected_cash',
+
+        // Catatan Teller atas selisih kas (wajib bila uang fisik != kas seharusnya)
+        'catatan_selisih',
 
         // Status laporan
         'status',
@@ -60,12 +76,24 @@ class DailyReport extends Model
         'pecahan_100k' => 'integer',
         'pecahan_50k' => 'integer',
         'pecahan_20k' => 'integer',
+        'pecahan_10k' => 'integer',
         'pecahan_5k' => 'integer',
+        'pecahan_2k' => 'integer',
+        'pecahan_1k' => 'integer',
+        'pecahan_500' => 'integer',
+        'pecahan_100' => 'integer',
+        'pecahan_50' => 'integer',
 
         'pecahan_awal_100k' => 'integer',
         'pecahan_awal_50k' => 'integer',
         'pecahan_awal_20k' => 'integer',
+        'pecahan_awal_10k' => 'integer',
         'pecahan_awal_5k' => 'integer',
+        'pecahan_awal_2k' => 'integer',
+        'pecahan_awal_1k' => 'integer',
+        'pecahan_awal_500' => 'integer',
+        'pecahan_awal_100' => 'integer',
+        'pecahan_awal_50' => 'integer',
 
         'deposit_total' => 'decimal:2',
         'withdrawal_total' => 'decimal:2',
@@ -103,6 +131,23 @@ class DailyReport extends Model
         return $this->hasMany(ReportNotification::class);
     }
 
+    /**
+     * Transaksi hari itu yang dipilih Teller sebagai penjelasan selisih kas.
+     *
+     * Dipakai ketika uang fisik di laci berbeda dengan kas akhir sistem,
+     * mis. pada hari yang hanya berisi penarikan tunai sehingga uang di
+     * laci lebih kecil daripada modal yang diterima Teller.
+     */
+    public function transaksiPenjelas(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            Transaction::class,
+            'daily_report_transactions',
+            'daily_report_id',
+            'transaction_id'
+        )->withTimestamps();
+    }
+
     // Relasi Supervisor yang menerima kas
     public function transferApprover()
     {
@@ -122,7 +167,9 @@ class DailyReport extends Model
     }
 
     /**
-     * Daftar pecahan uang fisik kas akhir yang dipakai pada cetakan.
+     * Daftar pecahan uang fisik kas akhir yang dipakai pada formulir &
+     * cetakan. Urut dari nominal terbesar ke terkecil; uang kertas
+     * memakai satuan "lembar", uang logam memakai satuan "keping".
      *
      * @var array<int, array{nominal: int, kolom: string, satuan: string}>
      */
@@ -130,11 +177,22 @@ class DailyReport extends Model
         ['nominal' => 100000, 'kolom' => 'pecahan_100k', 'satuan' => 'lembar'],
         ['nominal' => 50000, 'kolom' => 'pecahan_50k', 'satuan' => 'lembar'],
         ['nominal' => 20000, 'kolom' => 'pecahan_20k', 'satuan' => 'lembar'],
+        ['nominal' => 10000, 'kolom' => 'pecahan_10k', 'satuan' => 'lembar'],
         ['nominal' => 5000, 'kolom' => 'pecahan_5k', 'satuan' => 'lembar'],
+        ['nominal' => 2000, 'kolom' => 'pecahan_2k', 'satuan' => 'lembar'],
+        ['nominal' => 1000, 'kolom' => 'pecahan_1k', 'satuan' => 'lembar'],
+        ['nominal' => 500, 'kolom' => 'pecahan_500', 'satuan' => 'keping'],
+        ['nominal' => 100, 'kolom' => 'pecahan_100', 'satuan' => 'keping'],
+        ['nominal' => 50, 'kolom' => 'pecahan_50', 'satuan' => 'keping'],
     ];
 
     /**
      * Daftar pecahan rincian lembaran saldo awal (modal diterima).
+     *
+     * Formulir Teller tidak lagi meminta rincian ini (cukup satu rincian
+     * lembaran: uang fisik kas akhir). Daftar tetap dipakai pada cetakan
+     * rekapitulasi yang dikirim ke Supervisor agar laporan lama yang
+     * sudah merinci modal tetap tampil lengkap.
      *
      * @var array<int, array{nominal: int, kolom: string, satuan: string}>
      */
@@ -142,8 +200,21 @@ class DailyReport extends Model
         ['nominal' => 100000, 'kolom' => 'pecahan_awal_100k', 'satuan' => 'lembar'],
         ['nominal' => 50000, 'kolom' => 'pecahan_awal_50k', 'satuan' => 'lembar'],
         ['nominal' => 20000, 'kolom' => 'pecahan_awal_20k', 'satuan' => 'lembar'],
+        ['nominal' => 10000, 'kolom' => 'pecahan_awal_10k', 'satuan' => 'lembar'],
         ['nominal' => 5000, 'kolom' => 'pecahan_awal_5k', 'satuan' => 'lembar'],
+        ['nominal' => 2000, 'kolom' => 'pecahan_awal_2k', 'satuan' => 'lembar'],
+        ['nominal' => 1000, 'kolom' => 'pecahan_awal_1k', 'satuan' => 'lembar'],
+        ['nominal' => 500, 'kolom' => 'pecahan_awal_500', 'satuan' => 'keping'],
+        ['nominal' => 100, 'kolom' => 'pecahan_awal_100', 'satuan' => 'keping'],
+        ['nominal' => 50, 'kolom' => 'pecahan_awal_50', 'satuan' => 'keping'],
     ];
+
+    /**
+     * Pecahan utama yang wajib dihitung Teller saat menutup kas.
+     *
+     * @var array<int, string>
+     */
+    public const PECAHAN_WAJIB = ['pecahan_100k', 'pecahan_50k', 'pecahan_20k'];
 
     /**
      * Total uang fisik di laci menurut hitungan Teller.
@@ -151,14 +222,6 @@ class DailyReport extends Model
     public function totalFisik(): float
     {
         return $this->hitungPecahan(self::PECAHAN_FISIK);
-    }
-
-    /**
-     * Total lembaran saldo awal yang dihitung Teller (0 bila tidak diisi).
-     */
-    public function totalFisikAwal(): float
-    {
-        return $this->hitungPecahan(self::PECAHAN_AWAL);
     }
 
     /**
@@ -175,6 +238,35 @@ class DailyReport extends Model
     public function selisihKas(): float
     {
         return $this->totalFisik() - $this->saldoAkhirSistem();
+    }
+
+    /**
+     * Perubahan kas bersih hari itu: setoran - penarikan.
+     *
+     * Hanya keterangan arus kas, bukan selisih kas fisik.
+     */
+    public function perubahanKasBersih(): float
+    {
+        return (float) $this->deposit_total - (float) $this->withdrawal_total;
+    }
+
+    /**
+     * Keterangan otomatis perubahan kas bersih.
+     */
+    public function keteranganPerubahanKas(): string
+    {
+        $setoran = (float) $this->deposit_total;
+        $penarikan = (float) $this->withdrawal_total;
+
+        if ($setoran <= 0 && $penarikan > 0) {
+            return 'Kas berkurang karena hanya ada tarik tunai, tidak ada setoran';
+        }
+
+        if (abs($setoran - $penarikan) < 0.01) {
+            return 'Kas tetap';
+        }
+
+        return $setoran > $penarikan ? 'Kas bertambah' : 'Kas berkurang';
     }
 
     /**
@@ -216,7 +308,7 @@ class DailyReport extends Model
     }
 
     /**
-     * Rincian lembaran saldo awal.
+     * Rincian lembaran saldo awal untuk cetakan rekapitulasi.
      *
      * @return array<int, array{nominal: int, jumlah: int, total: float, satuan: string}>
      */

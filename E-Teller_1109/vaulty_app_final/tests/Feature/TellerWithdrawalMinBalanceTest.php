@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Account;
+use App\Models\CustomerTransactionApproval;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -158,5 +159,56 @@ class TellerWithdrawalMinBalanceTest extends TestCase
             ->assertSee('Rp 90.000')
             // Notifikasi kuning duplikat tidak boleh muncul lagi.
             ->assertDontSee('Menunggu otorisasi nasabah di aplikasi');
+    }
+
+    public function test_setoran_juga_menunggu_konfirmasi_pin_nasabah_dan_saldo_belum_berubah(): void
+    {
+        $account = $this->buatRekening(20000);
+
+        $this->actingAs($this->teller)
+            ->post(route('teller.transaksi.store'), [
+                'account_number' => $account->account_number,
+                'type' => 'deposit',
+                'amount' => 5000,
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('customer_transaction_approval_id');
+
+        $approval = CustomerTransactionApproval::firstOrFail();
+
+        $this->assertSame('deposit', $approval->type);
+        $this->assertSame('pending', $approval->status);
+        $this->assertNotEmpty($approval->reference_number);
+        $this->assertStringStartsWith('REF', (string) $approval->reference_number);
+
+        // Saldo baru bertambah setelah nasabah menyetujui lewat PIN.
+        $this->assertSame(20000.0, (float) $account->fresh()->balance);
+        $this->assertDatabaseCount('transactions', 0);
+    }
+
+    public function test_transaksi_ditolak_saat_pin_nasabah_diblokir(): void
+    {
+        $account = $this->buatRekening(100000);
+        $account->update([
+            'pin_attempts' => 3,
+            'pin_reset_required' => true,
+            'pin_blocked' => true,
+        ]);
+
+        $this->actingAs($this->teller)
+            ->post(route('teller.transaksi.store'), [
+                'account_number' => $account->account_number,
+                'type' => 'withdrawal',
+                'amount' => 50000,
+            ])
+            ->assertSessionHasErrors('error');
+
+        $pesan = (string) session('errors')->first('error');
+
+        $this->assertStringContainsString('diblokir', $pesan);
+        // Tidak ada permintaan PIN yang dikirim ke aplikasi nasabah.
+        $this->assertDatabaseCount('customer_transaction_approvals', 0);
+        $this->assertDatabaseCount('transactions', 0);
     }
 }

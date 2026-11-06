@@ -27,7 +27,16 @@ class EnsureActiveCustomer
 
         $account = $user->account;
 
-        if ($user->status !== 'active' || !$account || $account->status !== 'active') {
+        // Rekening yang diblokir karena PIN salah 3x tetap boleh memakai
+        // aplikasi (login, /me, pengajuan buka blokir). Transaksi tetap
+        // diblokir oleh middleware pin.ready / pengecekan PIN.
+        $pinBlocked = $account && $account->pin_blocked;
+
+        if (
+            $user->status !== 'active' ||
+            !$account ||
+            ($account->status !== 'active' && !$pinBlocked)
+        ) {
             // Cabut token yang sedang dipakai supaya perangkat ini harus login ulang.
             $token = $user->currentAccessToken();
             if ($token instanceof PersonalAccessToken) {

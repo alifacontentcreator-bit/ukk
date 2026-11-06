@@ -22,7 +22,6 @@ class AdminUserIdentityValidationTest extends TestCase
             $table->string('password');
             $table->string('role');
             $table->string('email')->nullable()->unique();
-            $table->string('no_telp', 20)->nullable();
             $table->string('nis', 30)->nullable();
             $table->string('nip', 30)->nullable();
             $table->string('alamat')->nullable();
@@ -60,27 +59,6 @@ class AdminUserIdentityValidationTest extends TestCase
             ]);
     }
 
-    public function test_duplicate_phone_is_rejected_when_adding_a_customer(): void
-    {
-        $admin = $this->createAdmin();
-        User::create([
-            'name' => 'Existing customer',
-            'username' => 'existing-customer',
-            'password' => 'password',
-            'role' => 'customer',
-            'email' => 'existing@example.test',
-            'no_telp' => '081234567890',
-        ]);
-
-        $this->actingAs($admin)
-            ->post(route('admin.users.store'), $this->customerData([
-                'no_telp' => '081234567890',
-            ]))
-            ->assertSessionHasErrors([
-                'no_telp' => 'Nomor telepon ini sudah digunakan oleh pengguna lain.',
-            ]);
-    }
-
     public function test_student_identity_must_be_five_digits_and_unique(): void
     {
         $admin = $this->createAdmin();
@@ -108,36 +86,6 @@ class AdminUserIdentityValidationTest extends TestCase
             ]))
             ->assertSessionHasErrors([
                 'nis' => 'Nomor induk siswa wajib terdiri dari tepat 5 angka.',
-            ]);
-    }
-
-    public function test_duplicate_phone_is_rejected_when_editing_a_user(): void
-    {
-        $admin = $this->createAdmin();
-        User::create([
-            'name' => 'Existing user',
-            'username' => 'existing-user',
-            'password' => 'password',
-            'role' => 'customer',
-            'email' => 'existing@example.test',
-            'no_telp' => '081234567890',
-        ]);
-        $user = User::create([
-            'name' => 'User to edit',
-            'username' => 'user-to-edit',
-            'password' => 'password',
-            'role' => 'admin',
-        ]);
-
-        $this->actingAs($admin)
-            ->put(route('admin.users.update', $user), [
-                'name' => $user->name,
-                'username' => $user->username,
-                'role' => $user->role,
-                'no_telp' => '081234567890',
-            ])
-            ->assertSessionHasErrors([
-                'no_telp' => 'Nomor telepon ini sudah digunakan oleh pengguna lain.',
             ]);
     }
 

@@ -29,18 +29,11 @@
                             <input id="inputName" type="text" name="name" value="{{ old('name') }}" required placeholder="Contoh: Alifa Putri">
                             @error('name')<p class="form-error">{{ $message }}</p>@enderror
                         </div>
-                        <div class="form-grid">
-                            <div class="field">
-                                <label for="inputEmail">Email terdaftar / pemulihan</label>
-                                <input id="inputEmail" type="email" name="email" value="{{ old('email') }}" placeholder="email@sekolah.sch.id">
-                                <p id="emailRequiredNote" class="helper" hidden>Email wajib untuk aktivasi nasabah dan pemulihan akun pegawai.</p>
-                                @error('email')<p class="form-error">{{ $message }}</p>@enderror
-                            </div>
-                            <div class="field">
-                                <label for="inputNoTelp">No. telepon / WhatsApp</label>
-                                <input id="inputNoTelp" type="text" name="no_telp" value="{{ old('no_telp') }}" placeholder="08xxxxxxxxxx">
-                                @error('no_telp')<p class="form-error">{{ $message }}</p>@enderror
-                            </div>
+                        <div class="field">
+                            <label for="inputEmail">Email terdaftar / pemulihan</label>
+                            <input id="inputEmail" type="email" name="email" value="{{ old('email') }}" placeholder="email@sekolah.sch.id">
+                            <p id="emailRequiredNote" class="helper" hidden>Email wajib untuk aktivasi nasabah dan pemulihan akun pegawai.</p>
+                            @error('email')<p class="form-error">{{ $message }}</p>@enderror
                         </div>
                         <div class="field">
                             <label for="inputPhoto">Foto profil / wajah</label>

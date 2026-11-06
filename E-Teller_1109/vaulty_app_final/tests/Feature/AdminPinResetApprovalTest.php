@@ -41,8 +41,10 @@ class AdminPinResetApprovalTest extends TestCase
             $table->unsignedTinyInteger('pin_attempts')->default(0);
             $table->timestamp('pin_locked_until')->nullable();
             $table->boolean('pin_reset_required')->default(false);
+            $table->boolean('pin_blocked')->default(false);
             $table->timestamp('pin_changed_at')->nullable();
             $table->decimal('balance', 15, 2)->default(0);
+            $table->string('status')->default('active');
             $table->timestamps();
         });
 
@@ -129,6 +131,7 @@ class AdminPinResetApprovalTest extends TestCase
         $this->assertTrue(Hash::check('123456', $account->pin));
         $this->assertTrue($account->pin_is_default);
         $this->assertFalse($account->pin_reset_required);
+        $this->assertFalse($account->pin_blocked);
         $this->assertSame(0, $account->pin_attempts);
         $this->assertDatabaseHas('credential_reset_requests', [
             'id' => $requestId,

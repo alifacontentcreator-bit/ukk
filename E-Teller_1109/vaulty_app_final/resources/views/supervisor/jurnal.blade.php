@@ -1,7 +1,7 @@
 @extends('layouts.supervisor')
 @section('title', 'Jurnal Audit')
 @section('page-title', 'Jurnal Audit')
-@section('page-subtitle', 'Telusuri semua transaksi teller. Supervisor hanya dapat melihat, tidak mengubah.')
+@section('page-subtitle', 'Telusuri semua transaksi teller dari awal sampai sekarang. Supervisor hanya dapat melihat, tidak mengubah, dan data tidak pernah dihapus.')
 
 @section('content')
 <div class="grid-4">
@@ -45,7 +45,7 @@
 </section>
 
 <section class="card section">
-    <div class="section-head"><div><h2 class="section-title">Jurnal Transaksi</h2><p class="section-sub">{{ $transaksi->total() }} transaksi ditemukan.</p></div></div>
+    <div class="section-head"><div><h2 class="section-title">Jurnal Transaksi</h2><p class="section-sub">{{ $transaksi->total() }} transaksi ditemukan &middot; arsip sejak {{ $awalTransaksi ? \Carbon\Carbon::parse($awalTransaksi)->format('d/m/Y') : '-' }} &middot; tanpa filter tanggal, seluruh riwayat ditampilkan.</p></div></div>
     <div class="table-wrap">
         <table class="table">
             <thead><tr><th>Waktu</th><th>Referensi</th><th>Nasabah</th><th>Teller</th><th>Jenis</th><th class="num">Nominal</th><th>Status</th></tr></thead>

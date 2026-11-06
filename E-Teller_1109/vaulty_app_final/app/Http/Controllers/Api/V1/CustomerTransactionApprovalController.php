@@ -26,11 +26,13 @@ class CustomerTransactionApprovalController extends Controller
             ->get()
             ->map(fn (CustomerTransactionApproval $approval) => [
                 'id' => $approval->id,
+                'reference_number' => $approval->reference_number,
                 'type' => $approval->type,
-                'type_label' => $approval->type === 'deposit' ? 'Setoran tunai' : 'Penarikan tunai',
+                'type_label' => $approval->type === 'deposit' ? 'Setoran Tunai' : 'Penarikan Tunai',
                 'amount' => (float) $approval->amount,
                 'description' => $approval->description,
                 'teller_name' => $approval->teller?->name ?? 'Teller',
+                'requested_at' => $approval->created_at?->toIso8601String(),
                 'expires_at' => $approval->expires_at->toIso8601String(),
             ]);
 
@@ -44,7 +46,7 @@ class CustomerTransactionApprovalController extends Controller
         TransactionPostingService $posting
     ): JsonResponse {
         $data = $request->validate([
-            'pin' => [$approval->type === 'withdrawal' ? 'required' : 'nullable', 'digits:6'],
+            'pin' => ['required', 'digits:6'],
         ]);
         $user = $request->user();
 
@@ -81,29 +83,32 @@ class CustomerTransactionApprovalController extends Controller
                     ], 410);
                 }
 
-                if ($lockedApproval->type === 'withdrawal') {
-                    $check = $pins->verify($account, (string) $data['pin']);
+                /*
+                 * PIN wajib untuk SETORAN maupun PENARIKAN. Setoran ikut
+                 * dikonfirmasi nasabah supaya saldo hanya bertambah setelah
+                 * nasabah menyetujui permintaan Teller.
+                 */
+                $check = $pins->verify($account, (string) $data['pin']);
 
-                    if ($check['status'] === 'locked') {
-                        $lockedApproval->update([
-                            'status' => 'rejected',
-                            'processed_at' => now(),
-                        ]);
+                if ($check['status'] === 'locked') {
+                    $lockedApproval->update([
+                        'status' => 'rejected',
+                        'processed_at' => now(),
+                    ]);
 
-                        return response()->json([
-                            'message' => $pins->lockedMessage($check['retry_after']),
-                            'code' => $check['reset_required'] ? 'PIN_RESET_REQUIRED' : 'PIN_LOCKED',
-                            'retry_after' => $check['retry_after'],
-                        ], 423);
-                    }
+                    return response()->json([
+                        'message' => $pins->lockedMessage($check['retry_after']),
+                        'code' => $check['reset_required'] ? 'PIN_BLOCKED' : 'PIN_LOCKED',
+                        'retry_after' => $check['retry_after'],
+                    ], 423);
+                }
 
-                    if ($check['status'] === 'wrong') {
-                        return response()->json([
-                            'message' => 'PIN salah. Sisa percobaan: ' . $check['attempts_left'] . '.',
-                            'code' => 'PIN_INVALID',
-                            'attempts_left' => $check['attempts_left'],
-                        ], 422);
-                    }
+                if ($check['status'] === 'wrong') {
+                    return response()->json([
+                        'message' => 'PIN salah. Sisa percobaan: ' . $check['attempts_left'] . '.',
+                        'code' => 'PIN_INVALID',
+                        'attempts_left' => $check['attempts_left'],
+                    ], 422);
                 }
 
                 $account->load('user');
@@ -113,7 +118,8 @@ class CustomerTransactionApprovalController extends Controller
                     $teller,
                     $lockedApproval->type,
                     (float) $lockedApproval->amount,
-                    $lockedApproval->description
+                    $lockedApproval->description,
+                    $lockedApproval->reference_number
                 );
 
                 $lockedApproval->update([

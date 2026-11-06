@@ -6,12 +6,12 @@ use App\Models\DutyAttendance;
 use App\Models\DutyShift;
 use App\Models\DutyWeeklySchedule;
 use App\Models\User;
-use App\Services\PetugasSheet;
-use DomainException;
+use App\Services\ExcelExport;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 /**
- * Sisi SUPERVISOR: absensi petugas, jadwal jaga & shift, dan data petugas (Excel).
+ * Sisi SUPERVISOR: absensi petugas, jadwal jaga & shift, dan data petugas.
  */
 class SupervisorDutyController extends Controller
 {
@@ -93,14 +93,13 @@ class SupervisorDutyController extends Controller
         return back()->with('success', 'Kehadiran dicatat sebagai ' . DutyAttendance::STATUS[$data['status']] . '.');
     }
 
-    public function attendanceExport(Request $request, PetugasSheet $sheet)
+    public function attendanceExport(Request $request, ExcelExport $excel)
     {
         [$query, $from, $to] = $this->attendanceQuery($request);
 
         $rows = $query->orderBy('duty_date')->orderBy('check_in_at')->get()->map(fn ($a) => [
             $a->user->name ?? '-',
             $a->user->kelas ?? '-',
-            $a->user->no_telp ?? '',
             $a->duty_date->format('d/m/Y'),
             $a->shift ? $a->shift->name : 'Di luar jadwal',
             $a->check_in_at ? $a->check_in_at->format('H:i') : '',
@@ -109,9 +108,9 @@ class SupervisorDutyController extends Controller
             $a->note ?? '',
         ]);
 
-        return $sheet->download(
+        return $excel->download(
             "absensi-petugas_{$from}_sd_{$to}.xlsx",
-            ['Nama', 'Kelas', 'No. WA', 'Tanggal', 'Shift', 'Jam Masuk', 'Jam Pulang', 'Status', 'Keterangan'],
+            ['Nama', 'Kelas', 'Tanggal', 'Shift', 'Jam Masuk', 'Jam Pulang', 'Status', 'Keterangan'],
             $rows,
             'Absensi'
         );
@@ -145,12 +144,14 @@ class SupervisorDutyController extends Controller
     public function scheduleStore(Request $request)
     {
         $data = $request->validate([
-            'hari' => ['required', 'integer', 'between:1,7'],
+            // Jadwal hanya Senin–Jumat (Sabtu & Minggu tidak dijadwalkan).
+            'hari' => ['required', 'integer', Rule::in(array_keys(DutyWeeklySchedule::HARI))],
             'duty_shift_id' => ['required', 'integer', 'exists:duty_shifts,id'],
             'petugas' => ['required', 'array', 'min:1', 'max:50'],
             'petugas.*' => ['integer', 'exists:users,id'],
         ], [
             'hari.required' => 'Pilih hari jaga.',
+            'hari.in' => 'Jadwal jaga hanya Senin sampai Jumat.',
             'petugas.required' => 'Pilih minimal satu petugas.',
         ]);
 
@@ -237,7 +238,7 @@ class SupervisorDutyController extends Controller
         return back()->with('success', 'Shift dihapus.');
     }
 
-    // ===================== DATA PETUGAS (EXCEL) =====================
+    // ===================== DATA PETUGAS =====================
 
     private function officerQuery(Request $request)
     {
@@ -257,47 +258,10 @@ class SupervisorDutyController extends Controller
         return $query->orderBy('name');
     }
 
-    public function officerIndex(Request $request, PetugasSheet $sheet)
+    public function officerIndex(Request $request)
     {
         $petugas = $this->officerQuery($request)->paginate(20)->withQueryString();
-        $tanpaWa = User::where('role', 'teller')->where(fn ($w) => $w->whereNull('no_telp')->orWhere('no_telp', ''))->count();
 
-        return view('supervisor.petugas', ['petugas' => $petugas, 'tanpaWa' => $tanpaWa, 'sheet' => $sheet]);
-    }
-
-    public function officerImport(Request $request, PetugasSheet $sheet)
-    {
-        $request->validate([
-            'file' => ['required', 'file', 'mimes:xlsx,xls,csv,txt', 'max:2048'],
-        ], [
-            'file.required' => 'Pilih file Excel atau CSV terlebih dahulu.',
-            'file.mimes' => 'File harus berformat .xlsx, .xls, atau .csv.',
-            'file.max' => 'Ukuran file maksimal 2 MB.',
-        ]);
-
-        try {
-            $hasil = $sheet->import($request->file('file'));
-        } catch (DomainException $e) {
-            return back()->withErrors(['file' => $e->getMessage()]);
-        }
-
-        return back()
-            ->with('success', "Impor selesai: {$hasil['updated']} nomor diperbarui, {$hasil['unchanged']} sudah sama, " . count($hasil['skipped']) . ' baris dilewati.')
-            ->with('import_skipped', $hasil['skipped']);
-    }
-
-    public function officerExport(Request $request, PetugasSheet $sheet)
-    {
-        // ?templat=1 -> hanya baris judul, untuk diisi lalu diimpor kembali.
-        $rows = $request->boolean('templat') ? [] : $this->officerQuery($request)->get()->map(fn ($u) => [
-            $u->name, $u->kelas ?? '', $u->no_telp ?? '',
-        ]);
-
-        return $sheet->download(
-            $request->boolean('templat') ? 'templat-data-petugas.xlsx' : 'data-petugas.xlsx',
-            ['Nama', 'Kelas', 'No. WA yang bisa dihubungi'],
-            $rows,
-            'Petugas'
-        );
+        return view('supervisor.petugas', ['petugas' => $petugas]);
     }
 }

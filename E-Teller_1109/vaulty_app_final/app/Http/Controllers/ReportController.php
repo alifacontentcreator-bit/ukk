@@ -37,6 +37,7 @@ class ReportController extends Controller
             'rejecter',
             'reopener',
             'reopenLogs',
+            'transaksiPenjelas.account.user',
         ])->whereIn('status', [
             'submitted',
             'approved',
@@ -64,6 +65,27 @@ class ReportController extends Controller
             ->latest('report_date')
             ->paginate(8)
             ->withQueryString();
+
+        /*
+         * Jumlah transaksi setor/tarik pada tanggal laporan, dipakai untuk
+         * catatan sistem pada kartu validasi Supervisor.
+         */
+        $reports->getCollection()->each(function (DailyReport $report) {
+            $tanggal = \Carbon\Carbon::parse($report->report_date)->toDateString();
+
+            $trx = Transaction::where('user_id', $report->teller_id)
+                ->whereDate('created_at', $tanggal);
+
+            $report->setAttribute('setoran_count', (int) (clone $trx)
+                ->where('type', 'deposit')
+                ->whereIn('status', ['approved', 'success'])
+                ->count());
+
+            $report->setAttribute('penarikan_count', (int) (clone $trx)
+                ->where('type', 'withdrawal')
+                ->whereIn('status', ['approved', 'success'])
+                ->count());
+        });
 
         $tellers = User::where('role', 'teller')
             ->orderBy('name')
@@ -345,11 +367,32 @@ class ReportController extends Controller
             abort(403, 'Anda tidak berhak mencetak laporan Teller lain.');
         }
 
-        $report->loadMissing(['teller', 'approver', 'rejecter']);
+        $report->loadMissing(['teller', 'approver', 'rejecter', 'transaksiPenjelas']);
+
+        $tanggalLaporan = \Carbon\Carbon::parse($report->report_date)->toDateString();
+
+        /*
+         * Draf belum menyimpan hasil hitung uang fisik dan angka mutasinya
+         * dapat berubah setelah ada transaksi baru. Untuk cetakan draf,
+         * angka rekap disegarkan (tanpa disimpan) supaya cetakan tidak
+         * menampilkan selisih palsu seperti "uang fisik Rp0".
+         */
+        if ($report->status === 'draft') {
+            $modalTerbaru = $this->confirmedOpeningTotal((int) $report->teller_id, $tanggalLaporan);
+
+            $report->forceFill(array_merge(
+                $this->reportData(
+                    $tanggalLaporan,
+                    $report->transaksiPenjelas->pluck('id')->all(),
+                    (int) $report->teller_id
+                ),
+                ['saldo_awal' => $modalTerbaru > 0 ? $modalTerbaru : $report->saldo_awal]
+            ));
+        }
 
         $transactions = Transaction::with(['account.user'])
             ->where('user_id', $report->teller_id)
-            ->whereDate('created_at', \Carbon\Carbon::parse($report->report_date)->toDateString())
+            ->whereDate('created_at', $tanggalLaporan)
             ->whereIn('status', ['approved', 'success', 'corrected'])
             ->orderBy('created_at')
             ->orderBy('id')
@@ -373,7 +416,11 @@ class ReportController extends Controller
             default => 'Laporan masih draf dan belum dikirim ke Supervisor.',
         };
 
-        $terbilang = \App\Support\Terbilang::rupiah($report->totalFisik());
+        $terbilang = \App\Support\Terbilang::rupiah(
+            $report->totalFisik() > 0
+                ? $report->totalFisik()
+                : $report->saldoAkhirSistem()
+        );
 
         $backUrl = $user->role === 'teller'
             ? route('teller.laporan', ['tanggal' => \Carbon\Carbon::parse($report->report_date)->toDateString()])
@@ -1060,15 +1107,48 @@ class ReportController extends Controller
             ->where('user_id', auth()->id())
             ->whereDate('created_at', $tanggal);
 
+        $reportHariIni = DailyReport::where('teller_id', auth()->id())
+            ->whereDate('report_date', $tanggal)
+            ->with('transaksiPenjelas')
+            ->first();
+
+        /*
+         * Transaksi yang sudah dipilih Teller sebagai penjelasan selisih
+         * ikut dihitung walau statusnya belum final, supaya angka kas
+         * sistem pada halaman ini sama dengan rekap yang dicetak.
+         */
+        $transaksiTerpilih = $reportHariIni
+            ? $reportHariIni->transaksiPenjelas->pluck('id')->all()
+            : [];
+
+        $statusTerhitung = function ($query) use ($transaksiTerpilih) {
+            $query->whereIn('status', ['approved', 'success']);
+
+            if ($transaksiTerpilih !== []) {
+                $query->orWhereIn('id', $transaksiTerpilih);
+            }
+        };
+
         $setoran = (clone $tx)
             ->where('type', 'deposit')
-            ->whereIn('status', ['approved', 'success'])
+            ->where($statusTerhitung)
             ->sum('amount');
 
         $penarikan = (clone $tx)
             ->where('type', 'withdrawal')
-            ->whereIn('status', ['approved', 'success'])
+            ->where($statusTerhitung)
             ->sum('amount');
+
+        // Jumlah transaksi per jenis (dipakai pada catatan sistem di form).
+        $jumlahSetoran = (clone $tx)
+            ->where('type', 'deposit')
+            ->where($statusTerhitung)
+            ->count();
+
+        $jumlahPenarikan = (clone $tx)
+            ->where('type', 'withdrawal')
+            ->where($statusTerhitung)
+            ->count();
 
         $transactions = (clone $tx)->latest()->get();
 
@@ -1086,10 +1166,6 @@ class ReportController extends Controller
 
         $saldoAkhirSistem =
             $saldoAwalSistem + $setoran + $administrasi - $penarikan - $pengembalian;
-
-        $reportHariIni = DailyReport::where('teller_id', auth()->id())
-            ->whereDate('report_date', $tanggal)
-            ->first();
 
         $reports = DailyReport::where('teller_id', auth()->id())
             ->latest('report_date')
@@ -1121,7 +1197,10 @@ class ReportController extends Controller
             'penarikan',
             'pengembalian',
             'administrasi',
-            'saldoAkhirSistem'
+            'saldoAkhirSistem',
+            'transaksiTerpilih',
+            'jumlahSetoran',
+            'jumlahPenarikan'
         ));
     }
 
@@ -1183,7 +1262,12 @@ class ReportController extends Controller
 
                 // Rekap transaksi dihitung ulang agar angka terbaru
                 // langsung terlihat saat Teller memperbaiki laporan.
-                $data = $this->reportData($tanggal);
+                // Transaksi penjelas selisih yang sudah dipilih tetap
+                // diperhitungkan supaya kas sistem tidak berubah.
+                $data = $this->reportData(
+                    $tanggal,
+                    $report->transaksiPenjelas()->pluck('transactions.id')->all()
+                );
 
                 // Modal bisa bertambah setelah draft dibuat; segarkan saldo awal
                 // agar laporan memakai total modal terbaru.
@@ -1221,25 +1305,45 @@ class ReportController extends Controller
      * Menghitung mutasi transaksi harian Teller.
      * Nilai expected_cash adalah setoran dikurangi penarikan dan
      * pengembalian kas ke brankas, belum termasuk saldo awal modal Teller.
+     *
+     * @param  array<int, int>  $transaksiPenjelas  Transaksi yang dipilih Teller
+     *                                              sebagai penjelasan selisih kas.
+     * @param  int|null  $tellerId  Teller yang dihitung (default: user login).
      */
-    private function reportData(?string $date = null): array
+    private function reportData(?string $date = null, array $transaksiPenjelas = [], ?int $tellerId = null): array
     {
         $date ??= today()->toDateString();
-        $tx = Transaction::where('user_id', auth()->id())
+        $tellerId ??= (int) auth()->id();
+
+        $tx = Transaction::where('user_id', $tellerId)
             ->whereDate('created_at', $date);
+
+        /*
+         * Status final (approved/success) otomatis dihitung. Transaksi yang
+         * dipilih Teller sebagai penjelasan selisih ikut dihitung walau
+         * statusnya belum final (mis. hasil koreksi), agar kas akhir sistem
+         * sejalan dengan uang fisik yang benar-benar ada di laci.
+         */
+        $terhitung = function ($query) use ($transaksiPenjelas) {
+            $query->whereIn('status', ['approved', 'success']);
+
+            if ($transaksiPenjelas !== []) {
+                $query->orWhereIn('id', $transaksiPenjelas);
+            }
+        };
 
         $deposit = (clone $tx)
             ->where('type', 'deposit')
-            ->whereIn('status', ['approved', 'success'])
+            ->where($terhitung)
             ->sum('amount');
 
         $withdrawal = (clone $tx)
             ->where('type', 'withdrawal')
-            ->whereIn('status', ['approved', 'success'])
+            ->where($terhitung)
             ->sum('amount');
 
         // Kas yang sudah dikembalikan Teller ke brankas pada hari ini.
-        $closing = CashTransfer::where('teller_id', auth()->id())
+        $closing = CashTransfer::where('teller_id', $tellerId)
             ->whereDate('transfer_date', $date)
             ->where('type', 'closing')
             ->where('status', 'confirmed')
@@ -1303,7 +1407,13 @@ class ReportController extends Controller
                     );
                 }
 
-                $data = array_merge($this->reportData(), [
+                // Transaksi penjelas selisih (bila sudah pernah dipilih)
+                // tetap diperhitungkan agar angka draft tidak berubah.
+                $transaksiPenjelas = $report
+                    ? $report->transaksiPenjelas()->pluck('transactions.id')->all()
+                    : [];
+
+                $data = array_merge($this->reportData($date, $transaksiPenjelas), [
                     'saldo_awal' => $modalHariIni,
                 ]);
 
@@ -1336,17 +1446,25 @@ class ReportController extends Controller
      */
     public function sendTeller(Request $request)
     {
-        $validated = $request->validate([
-            'tanggal' => ['nullable', 'date_format:Y-m-d'],
-            'pecahan_100k' => ['required', 'integer', 'min:0'],
-            'pecahan_50k' => ['required', 'integer', 'min:0'],
-            'pecahan_20k' => ['required', 'integer', 'min:0'],
-            'pecahan_5k' => ['nullable', 'integer', 'min:0'],
-            'pecahan_awal_100k' => ['nullable', 'integer', 'min:0'],
-            'pecahan_awal_50k' => ['nullable', 'integer', 'min:0'],
-            'pecahan_awal_20k' => ['nullable', 'integer', 'min:0'],
-            'pecahan_awal_5k' => ['nullable', 'integer', 'min:0'],
-        ], [
+        // Aturan validasi dibangun dari daftar pecahan pada model agar
+        // penambahan nominal baru (Rp10.000 s.d. Rp50) otomatis ikut
+        // tervalidasi tanpa mengubah method ini.
+        $aturan = ['tanggal' => ['nullable', 'date_format:Y-m-d']];
+
+        foreach (DailyReport::PECAHAN_FISIK as $pecahan) {
+            $aturan[$pecahan['kolom']] = in_array($pecahan['kolom'], DailyReport::PECAHAN_WAJIB, true)
+                ? ['required', 'integer', 'min:0']
+                : ['nullable', 'integer', 'min:0'];
+        }
+
+        // Transaksi hari itu yang dipilih sebagai penjelasan selisih kas.
+        $aturan['transaksi_penjelas'] = ['nullable', 'array'];
+        $aturan['transaksi_penjelas.*'] = ['integer', 'min:1'];
+
+        // Catatan Teller atas selisih kas (wajib bila selisih tidak nol).
+        $aturan['catatan_selisih'] = ['nullable', 'string', 'max:500'];
+
+        $validated = $request->validate($aturan, [
             'pecahan_100k.required' => 'Jumlah uang pecahan Rp100.000 wajib diisi.',
             'pecahan_50k.required' => 'Jumlah uang pecahan Rp50.000 wajib diisi.',
             'pecahan_20k.required' => 'Jumlah uang pecahan Rp20.000 wajib diisi.',
@@ -1397,43 +1515,63 @@ class ReportController extends Controller
                     );
                 }
 
-                $data = $this->reportData($date);
+                $rincianFisik = $this->jumlahPecahan($validated, DailyReport::PECAHAN_FISIK);
+                $totalFisik = $this->totalPecahan($rincianFisik, DailyReport::PECAHAN_FISIK);
 
-                // Rincian lembaran saldo awal bersifat opsional. Bila Teller
-                // menghitungnya, jumlahnya harus sama dengan modal yang diterima
-                // agar rekap cetak tidak memuat angka yang bertentangan.
-                $rincianAwal = [
-                    'pecahan_awal_100k' => (int) ($validated['pecahan_awal_100k'] ?? 0),
-                    'pecahan_awal_50k' => (int) ($validated['pecahan_awal_50k'] ?? 0),
-                    'pecahan_awal_20k' => (int) ($validated['pecahan_awal_20k'] ?? 0),
-                    'pecahan_awal_5k' => (int) ($validated['pecahan_awal_5k'] ?? 0),
-                ];
+                /*
+                 * Transaksi yang boleh dipilih sebagai penjelas hanyalah
+                 * transaksi Teller tersebut pada tanggal laporan.
+                 */
+                $kandidat = Transaction::where('user_id', $tellerId)
+                    ->whereDate('created_at', $date)
+                    ->where('status', '!=', 'void')
+                    ->pluck('id')
+                    ->map(fn ($id) => (int) $id)
+                    ->all();
 
-                $totalRincianAwal =
-                    ($rincianAwal['pecahan_awal_100k'] * 100000) +
-                    ($rincianAwal['pecahan_awal_50k'] * 50000) +
-                    ($rincianAwal['pecahan_awal_20k'] * 20000) +
-                    ($rincianAwal['pecahan_awal_5k'] * 5000);
+                $transaksiPenjelas = array_values(array_unique(array_map(
+                    'intval',
+                    (array) ($validated['transaksi_penjelas'] ?? [])
+                )));
 
-                if ($totalRincianAwal > 0 && $totalRincianAwal !== (int) $modalHariIni) {
+                if (array_diff($transaksiPenjelas, $kandidat) !== []) {
                     throw new \DomainException(
-                        'Rincian lembaran saldo awal (Rp '
-                        . number_format($totalRincianAwal, 0, ',', '.')
-                        . ') tidak sama dengan modal yang diterima (Rp '
-                        . number_format((float) $modalHariIni, 0, ',', '.')
-                        . '). Perbaiki rincian atau kosongkan kolomnya.'
+                        'Transaksi penjelas selisih harus transaksi Anda pada tanggal laporan ini.'
                     );
                 }
 
-                $report->update(array_merge($data, $rincianAwal, [
+                // Kas seharusnya = saldo awal (modal) + setoran - penarikan.
+                // Transaksi penjelas yang dipilih ikut dihitung.
+                $data = $this->reportData($date, $transaksiPenjelas);
+
+                $kasSeharusnya = $modalHariIni + (float) $data['expected_cash'];
+
+                // Selisih = uang fisik - kas seharusnya.
+                // Positif = kas lebih, negatif = kas kurang.
+                $selisih = $totalFisik - $kasSeharusnya;
+
+                $catatan = trim((string) ($validated['catatan_selisih'] ?? ''));
+
+                /*
+                 * Selisih tidak nol wajib dijelaskan lewat catatan Teller
+                 * sebelum laporan dikirim ke Supervisor.
+                 */
+                if (abs($selisih) >= 0.01 && $catatan === '') {
+                    throw new \DomainException(
+                        'Selisih kas Rp ' . number_format(abs($selisih), 0, ',', '.')
+                        . ' (' . ($selisih > 0 ? 'kas lebih' : 'kas kurang') . '). '
+                        . 'Isi catatan teller sebagai penjelasan sebelum mengirim laporan.'
+                    );
+                }
+
+                $report->update(array_merge($data, $rincianFisik, [
                     'saldo_awal' => $modalHariIni,
-                    'pecahan_100k' => $validated['pecahan_100k'],
-                    'pecahan_50k' => $validated['pecahan_50k'],
-                    'pecahan_20k' => $validated['pecahan_20k'],
-                    'pecahan_5k' => (int) ($validated['pecahan_5k'] ?? 0),
+                    'catatan_selisih' => $catatan !== '' ? $catatan : null,
                     'status' => 'submitted',
                     'submitted_at' => now(),
                 ]));
+
+                $report->transaksiPenjelas()->sync($transaksiPenjelas);
             });
 
             return back()->with(
@@ -1446,6 +1584,41 @@ class ReportController extends Controller
                 'report' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Mengambil jumlah lembar/keping yang diisi Teller dari input.
+     *
+     * @param  array<string, mixed>  $input
+     * @param  array<int, array{nominal: int, kolom: string, satuan: string}>  $daftar
+     * @return array<string, int>
+     */
+    private function jumlahPecahan(array $input, array $daftar): array
+    {
+        $jumlah = [];
+
+        foreach ($daftar as $pecahan) {
+            $jumlah[$pecahan['kolom']] = (int) ($input[$pecahan['kolom']] ?? 0);
+        }
+
+        return $jumlah;
+    }
+
+    /**
+     * Total rupiah dari jumlah lembar/keping yang sudah dihitung.
+     *
+     * @param  array<string, int>  $jumlah
+     * @param  array<int, array{nominal: int, kolom: string, satuan: string}>  $daftar
+     */
+    private function totalPecahan(array $jumlah, array $daftar): int
+    {
+        $total = 0;
+
+        foreach ($daftar as $pecahan) {
+            $total += ($jumlah[$pecahan['kolom']] ?? 0) * $pecahan['nominal'];
+        }
+
+        return $total;
     }
 
     /**

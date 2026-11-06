@@ -12,18 +12,12 @@ return new class extends Migration
             if (!Schema::hasColumn('users', 'email')) {
                 $table->string('email')->nullable()->unique();
             }
-            if (!Schema::hasColumn('users', 'no_telp')) {
-                $table->string('no_telp', 20)->nullable();
-            }
         });
     }
 
     public function down(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            if (Schema::hasColumn('users', 'no_telp')) {
-                $table->dropColumn('no_telp');
-            }
             if (Schema::hasColumn('users', 'email')) {
                 $table->dropUnique('users_email_unique');
                 $table->dropColumn('email');

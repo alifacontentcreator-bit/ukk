@@ -48,6 +48,7 @@ class CustomerTransactionApprovalTest extends TestCase
             $table->unsignedTinyInteger('pin_attempts')->default(0);
             $table->timestamp('pin_locked_until')->nullable();
             $table->boolean('pin_reset_required')->default(false);
+            $table->boolean('pin_blocked')->default(false);
             $table->timestamp('pin_changed_at')->nullable();
             $table->decimal('balance', 15, 2)->default(0);
             $table->string('product_type')->default('tabungan_siswa');
@@ -61,6 +62,7 @@ class CustomerTransactionApprovalTest extends TestCase
             $table->unsignedBigInteger('account_id');
             $table->unsignedBigInteger('teller_id');
             $table->unsignedBigInteger('transaction_id')->nullable();
+            $table->string('reference_number', 40)->nullable();
             $table->string('type', 20);
             $table->decimal('amount', 15, 2);
             $table->string('description')->nullable();
@@ -182,11 +184,13 @@ class CustomerTransactionApprovalTest extends TestCase
                 ['pin' => '000000']
             )
             ->assertStatus(423)
-            ->assertJsonPath('code', 'PIN_RESET_REQUIRED');
+            ->assertJsonPath('code', 'PIN_BLOCKED');
 
         $this->assertDatabaseHas('accounts', [
             'id' => $accountId,
             'pin_reset_required' => true,
+            'pin_blocked' => true,
+            'status' => 'blocked',
         ]);
         $this->assertDatabaseHas('customer_transaction_approvals', [
             'id' => $approval->id,
@@ -269,7 +273,7 @@ class CustomerTransactionApprovalTest extends TestCase
         ]);
     }
 
-    public function test_customer_can_approve_a_deposit_without_entering_a_pin(): void
+    public function test_customer_must_enter_a_pin_to_approve_a_deposit(): void
     {
         [$customer, $accountId] = $this->createCustomer();
         $tellerId = $this->createUser('teller', 'teller005');
@@ -289,12 +293,47 @@ class CustomerTransactionApprovalTest extends TestCase
                 });
         });
 
+        // Setoran tanpa PIN ditolak oleh validasi.
         $this->actingAs($customer, 'sanctum')
             ->postJson("/api/v1/transactions/pending-approval/{$approval->id}/authorize")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('pin');
+
+        // Dengan PIN yang benar, setoran dicatat dan saldo bertambah.
+        $this->actingAs($customer, 'sanctum')
+            ->postJson(
+                "/api/v1/transactions/pending-approval/{$approval->id}/authorize",
+                ['pin' => '246810']
+            )
             ->assertOk()
             ->assertJsonPath('code', 'TRANSACTION_APPROVED');
 
         $this->assertDatabaseHas('accounts', ['id' => $accountId, 'balance' => 105000]);
+    }
+
+    public function test_pending_approval_list_contains_reference_time_and_type(): void
+    {
+        [$customer, $accountId] = $this->createCustomer();
+        $tellerId = $this->createUser('teller', 'teller006');
+        $approval = $this->createApproval($accountId, $tellerId, 'deposit', 25000);
+
+        $this->actingAs($customer, 'sanctum')
+            ->getJson('/api/v1/transactions/pending-approval')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $approval->id)
+            ->assertJsonPath('data.0.reference_number', $approval->reference_number)
+            ->assertJsonPath('data.0.type', 'deposit')
+            ->assertJsonPath('data.0.type_label', 'Setoran Tunai')
+            ->assertJsonPath('data.0.amount', 25000)
+            ->assertJsonPath('data.0.teller_name', 'Teller Test')
+            ->assertJsonStructure([
+                'data' => [[
+                    'reference_number',
+                    'type_label',
+                    'requested_at',
+                    'expires_at',
+                ]],
+            ]);
     }
 
     private function createCustomer(): array
@@ -335,6 +374,7 @@ class CustomerTransactionApprovalTest extends TestCase
         $id = DB::table('customer_transaction_approvals')->insertGetId([
             'account_id' => $accountId,
             'teller_id' => $tellerId,
+            'reference_number' => 'REFTEST' . $accountId . strtoupper($type),
             'type' => $type,
             'amount' => $amount,
             'description' => 'Uji transaksi',

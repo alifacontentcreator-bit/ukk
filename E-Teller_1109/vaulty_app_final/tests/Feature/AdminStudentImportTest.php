@@ -27,7 +27,6 @@ class AdminStudentImportTest extends TestCase
             $table->string('role');
             $table->string('status')->default('active');
             $table->string('email')->nullable()->unique();
-            $table->string('no_telp')->nullable();
             $table->string('nis')->nullable()->unique();
             $table->string('kelas')->nullable();
             $table->string('jurusan')->nullable();
@@ -87,7 +86,7 @@ class AdminStudentImportTest extends TestCase
 
         $file = UploadedFile::fake()->createWithContent(
             'siswa.csv',
-            "Nama,NIS,Kelas,Email,No. Telepon\nAlya Putri,54321,X RPL1,alya@example.test,081234567890\n"
+            "Nama,NIS,Kelas,Email\nAlya Putri,54321,X RPL1,alya@example.test\n"
         );
 
         $this->actingAs($admin)

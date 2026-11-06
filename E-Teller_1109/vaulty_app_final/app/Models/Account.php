@@ -11,7 +11,7 @@ class Account extends Model
 
     protected $fillable = [
         'user_id', 'account_number', 'pin', 'pin_is_default', 'balance', 'product_type', 'qr_token', 'status',
-        'pin_attempts', 'pin_locked_until', 'pin_reset_required', 'pin_changed_at',
+        'pin_attempts', 'pin_locked_until', 'pin_reset_required', 'pin_blocked', 'pin_changed_at',
     ];
 
     protected $hidden = ['pin'];
@@ -22,6 +22,7 @@ class Account extends Model
         'pin_attempts' => 'integer',
         'pin_locked_until' => 'datetime',
         'pin_reset_required' => 'boolean',
+        'pin_blocked' => 'boolean',
         'pin_changed_at' => 'datetime',
     ];
 

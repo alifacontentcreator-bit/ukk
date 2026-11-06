@@ -7,7 +7,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * Halaman Data Petugas (Supervisor): tanpa filter nomor WA.
+ * Halaman Data Petugas (Supervisor): daftar teller tanpa nomor WA.
  */
 class SupervisorPetugasPageTest extends TestCase
 {
@@ -30,7 +30,6 @@ class SupervisorPetugasPageTest extends TestCase
             'name' => 'Budi Teller',
             'username' => 'budi',
             'kelas' => 'X TKJ 1',
-            'no_telp' => '081234567890',
             'password' => 'password',
             'role' => 'teller',
         ]);
@@ -44,7 +43,7 @@ class SupervisorPetugasPageTest extends TestCase
         ]);
     }
 
-    public function test_halaman_data_petugas_tanpa_filter_nomor_wa(): void
+    public function test_halaman_data_petugas_menampilkan_daftar_teller(): void
     {
         $this->actingAs($this->supervisor)
             ->get(route('supervisor.petugas'))
@@ -52,10 +51,10 @@ class SupervisorPetugasPageTest extends TestCase
             ->assertSee('Daftar Petugas')
             ->assertSee('Budi Teller')
             ->assertSee('Sari Teller')
-            ->assertSee('081234567890')
-            // Filter nomor WA sudah dihapus.
-            ->assertDontSee('name="wa"', false)
-            ->assertDontSee('Nomor WA');
+            // Nomor WA tidak lagi ditampilkan di halaman ini.
+            ->assertDontSee('No. WA')
+            ->assertDontSee('Nomor WA')
+            ->assertDontSee('whatsapp', false);
     }
 
     public function test_pencarian_nama_tetap_berfungsi(): void

@@ -68,6 +68,8 @@ class PinService
                 'pin_attempts' => self::MAX_ATTEMPTS,
                 'pin_locked_until' => null,
                 'pin_reset_required' => true,
+                'pin_blocked' => true,
+                'status' => 'blocked',
             ]);
 
             return [
@@ -108,11 +110,11 @@ class PinService
     public function lockedMessage(int $retryAfterSeconds): string
     {
         if ($retryAfterSeconds === 0) {
-            return 'PIN terkunci setelah 3 kali salah. Nasabah harus mengajukan reset PIN kepada Teller.';
+            return 'PIN salah 3 kali. Akun diblokir; nasabah harus mengajukan buka blokir dan reset PIN melalui aplikasi.';
         }
 
         $minutes = (int) ceil($retryAfterSeconds / 60);
 
-        return "PIN nasabah terkunci sementara karena terlalu banyak salah. Coba lagi dalam {$minutes} menit, atau ajukan reset PIN.";
+        return "PIN nasabah terkunci sementara karena terlalu banyak salah. Coba lagi dalam {$minutes} menit, atau ajukan buka blokir dan reset PIN melalui aplikasi.";
     }
 }

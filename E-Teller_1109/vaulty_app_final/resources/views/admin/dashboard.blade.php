@@ -13,6 +13,21 @@
         </div>
     </div>
 
+    @php
+        $pendingPinResets = \Illuminate\Support\Facades\Schema::hasTable('credential_reset_requests')
+            ? \App\Models\CredentialResetRequest::open()->where('type', \App\Models\CredentialResetRequest::TYPE_PIN)->count()
+            : 0;
+    @endphp
+    @if($pendingPinResets > 0)
+        <div class="alert alert-warn" style="margin-bottom:14px;display:flex;justify-content:space-between;gap:12px;align-items:center">
+            <div>
+                <strong>{{ $pendingPinResets }} pengajuan lupa PIN nasabah</strong>
+                menunggu persetujuan Anda. Verifikasi identitas sebelum menyetujui.
+            </div>
+            <a class="btn btn-primary btn-sm" href="{{ route('admin.reset-pin') }}">Periksa &amp; Setujui</a>
+        </div>
+    @endif
+
     <div class="grid-4">
         <div class="card stat">
             <div class="stat-top">

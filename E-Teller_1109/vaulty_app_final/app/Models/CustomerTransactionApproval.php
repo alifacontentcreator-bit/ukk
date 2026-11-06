@@ -10,6 +10,7 @@ class CustomerTransactionApproval extends Model
         'account_id',
         'teller_id',
         'transaction_id',
+        'reference_number',
         'type',
         'amount',
         'description',

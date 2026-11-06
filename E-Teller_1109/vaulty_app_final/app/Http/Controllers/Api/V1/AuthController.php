@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\CustomerNotification;
 use App\Models\User;
 use App\Services\ConfiguredOtpMailer;
 use App\Support\CustomerPayload;
@@ -25,6 +26,12 @@ class AuthController extends Controller
 
     /** Jeda minimal antar permintaan kode untuk NIS yang sama. */
     private const ACTIVATION_CODE_COOLDOWN_SECONDS = 15;
+
+    /** Masa berlaku kode OTP lupa password. */
+    private const PASSWORD_RESET_CODE_MINUTES = 3;
+
+    /** Jeda minimal antar permintaan kode OTP lupa password. */
+    private const PASSWORD_RESET_COOLDOWN_SECONDS = 15;
 
     /**
      * Mengirim kode aktivasi ke email yang sudah terdaftar pada akun nasabah.
@@ -171,6 +178,253 @@ class AuthController extends Controller
             'expires_in' => self::ACTIVATION_CODE_MINUTES * 60,
             'resend_after' => self::ACTIVATION_CODE_COOLDOWN_SECONDS,
         ], 202);
+    }
+
+    /**
+     * Mengirim kode OTP lupa password ke email yang terdaftar pada akun
+     * nasabah. Nasabah hanya perlu memasukkan NIS (5 angka).
+     */
+    public function requestPasswordResetCode(
+        Request $request,
+        ConfiguredOtpMailer $mailer
+    ): JsonResponse {
+        $data = $request->validate([
+            'username' => ['required', 'digits:5'],
+        ], [
+            'username.required' => 'NIS wajib diisi.',
+            'username.digits' => 'NIS harus terdiri dari 5 angka.',
+        ]);
+
+        $rateLimitKey = 'password-reset-code:'
+            . hash('sha256', Str::lower($data['username']) . '|' . $request->ip());
+
+        if (RateLimiter::tooManyAttempts($rateLimitKey, 1)) {
+            return response()->json([
+                'message' => 'Tunggu '
+                    . self::PASSWORD_RESET_COOLDOWN_SECONDS
+                    . ' detik sebelum meminta kode lagi.',
+                'code' => 'PASSWORD_RESET_CODE_RATE_LIMITED',
+                'retry_after' => RateLimiter::availableIn($rateLimitKey),
+            ], 429);
+        }
+
+        RateLimiter::hit($rateLimitKey, self::PASSWORD_RESET_COOLDOWN_SECONDS);
+
+        $resetCode = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+
+        $result = DB::transaction(function () use ($data, $resetCode) {
+            $user = User::where('role', 'customer')
+                ->where(function ($query) use ($data) {
+                    $query->where('username', $data['username'])
+                        ->orWhere('nis', $data['username'])
+                        ->orWhere('nisn', $data['username']);
+                })
+                ->lockForUpdate()
+                ->first();
+
+            if (!$user) {
+                return response()->json([
+                    'message' => 'NIS ' . $data['username']
+                        . ' tidak ditemukan. Periksa kembali nomor yang Anda masukkan.',
+                    'code' => 'USER_NOT_FOUND',
+                ], 404);
+            }
+
+            if ($user->must_change_password) {
+                return response()->json([
+                    'message' => 'Akun belum diaktivasi. Gunakan menu aktivasi akun terlebih dahulu.',
+                    'code' => 'ACCOUNT_NOT_ACTIVATED',
+                ], 409);
+            }
+
+            if ($user->status !== 'active') {
+                return response()->json([
+                    'message' => 'Akun Anda sedang tidak aktif. Hubungi Administrator.',
+                    'code' => 'ACCOUNT_INACTIVE',
+                ], 403);
+            }
+
+            if (!filled($user->email)) {
+                return response()->json([
+                    'message' => 'Akun ' . $user->username
+                        . ' belum memiliki email terdaftar. Minta Administrator '
+                        . 'mendaftarkan email Anda, lalu minta kode lagi.',
+                    'code' => 'EMAIL_NOT_REGISTERED',
+                ], 422);
+            }
+
+            // Kode lama tidak dicabut agar kode dari email sebelumnya tetap
+            // bisa dipakai sampai kedaluwarsa (sama seperti aktivasi).
+            $tokenId = DB::table('customer_password_reset_tokens')->insertGetId([
+                'user_id' => $user->id,
+                'token_hash' => hash('sha256', $resetCode),
+                'expires_at' => now()->addMinutes(self::PASSWORD_RESET_CODE_MINUTES),
+                'used_at' => null,
+                'revoked_at' => null,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            return [
+                'id' => $tokenId,
+                'user_id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+            ];
+        });
+
+        if ($result instanceof JsonResponse) {
+            return $result;
+        }
+
+        $reset = $result;
+
+        try {
+            $mailer->sendCustomerPasswordResetCode(
+                $reset['email'],
+                $reset['name'],
+                $resetCode
+            );
+        } catch (Throwable $exception) {
+            DB::table('customer_password_reset_tokens')
+                ->where('id', $reset['id'])
+                ->update([
+                    'revoked_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+            Log::error('Customer password reset email delivery failed.', [
+                'user_id' => $reset['user_id'],
+                'exception' => $exception::class,
+            ]);
+
+            return response()->json([
+                'message' => 'Email kode OTP belum dapat dikirim. Coba lagi nanti atau hubungi Administrator.',
+                'code' => 'PASSWORD_RESET_EMAIL_UNAVAILABLE',
+            ], 503);
+        }
+
+        $maskedEmail = $this->maskEmail($reset['email']);
+
+        return response()->json([
+            'message' => 'Kode OTP sudah dikirim ke '
+                . $maskedEmail
+                . '. Kode berlaku '
+                . self::PASSWORD_RESET_CODE_MINUTES
+                . ' menit.',
+            'code' => 'PASSWORD_RESET_CODE_SENT',
+            'email' => $maskedEmail,
+            'expires_in' => self::PASSWORD_RESET_CODE_MINUTES * 60,
+            'resend_after' => self::PASSWORD_RESET_COOLDOWN_SECONDS,
+        ], 202);
+    }
+
+    /**
+     * Mengatur ulang password nasabah memakai kode OTP dari email.
+     */
+    public function resetPassword(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'username' => ['required', 'digits:5'],
+            'reset_code' => ['required', 'digits:6'],
+            'password' => ['required', 'string', 'min:8', 'max:255', 'confirmed'],
+        ], [
+            'username.required' => 'NIS wajib diisi.',
+            'username.digits' => 'NIS harus terdiri dari 5 angka.',
+            'reset_code.required' => 'Kode OTP wajib diisi.',
+            'reset_code.digits' => 'Kode OTP harus terdiri dari 6 angka.',
+            'password.required' => 'Password baru wajib diisi.',
+            'password.min' => 'Password minimal 8 karakter.',
+            'password.confirmed' => 'Konfirmasi password tidak cocok.',
+        ]);
+
+        return DB::transaction(function () use ($data) {
+            $user = User::where('role', 'customer')
+                ->where(function ($query) use ($data) {
+                    $query->where('username', $data['username'])
+                        ->orWhere('nis', $data['username'])
+                        ->orWhere('nisn', $data['username']);
+                })
+                ->lockForUpdate()
+                ->first();
+
+            if (!$user) {
+                return response()->json([
+                    'message' => 'NIS atau kode OTP tidak valid.',
+                    'code' => 'PASSWORD_RESET_CODE_INVALID',
+                ], 422);
+            }
+
+            if ($user->must_change_password) {
+                return response()->json([
+                    'message' => 'Akun belum diaktivasi. Gunakan menu aktivasi akun terlebih dahulu.',
+                    'code' => 'ACCOUNT_NOT_ACTIVATED',
+                ], 409);
+            }
+
+            if ($user->status !== 'active') {
+                return response()->json([
+                    'message' => 'Akun Anda sedang tidak aktif. Hubungi Administrator.',
+                    'code' => 'ACCOUNT_INACTIVE',
+                ], 403);
+            }
+
+            $resetToken = DB::table('customer_password_reset_tokens')
+                ->where('user_id', $user->id)
+                ->where('token_hash', hash('sha256', $data['reset_code']))
+                ->lockForUpdate()
+                ->first();
+
+            if (!$resetToken || $resetToken->used_at !== null || $resetToken->revoked_at !== null) {
+                return response()->json([
+                    'message' => 'Kode OTP tidak sesuai atau sudah digunakan. Minta kode baru melalui aplikasi.',
+                    'code' => 'PASSWORD_RESET_CODE_INVALID',
+                ], 422);
+            }
+
+            if (now()->greaterThanOrEqualTo($resetToken->expires_at)) {
+                return response()->json([
+                    'message' => 'Kode OTP sudah kedaluwarsa. Minta kode baru melalui aplikasi.',
+                    'code' => 'PASSWORD_RESET_CODE_EXPIRED',
+                ], 422);
+            }
+
+            // Model User memakai cast password => hashed.
+            $user->forceFill([
+                'password' => $data['password'],
+                'must_change_password' => false,
+                'password_changed_at' => now(),
+            ])->save();
+
+            DB::table('customer_password_reset_tokens')
+                ->where('id', $resetToken->id)
+                ->update(['used_at' => now(), 'updated_at' => now()]);
+
+            // Kode lain untuk akun ini tidak berlaku lagi.
+            DB::table('customer_password_reset_tokens')
+                ->where('user_id', $user->id)
+                ->whereNull('used_at')
+                ->whereNull('revoked_at')
+                ->where('id', '!=', $resetToken->id)
+                ->update(['revoked_at' => now(), 'updated_at' => now()]);
+
+            // Perangkat yang masih login dengan password lama harus login ulang.
+            $user->tokens()->delete();
+
+            CustomerNotification::create([
+                'user_id' => $user->id,
+                'title' => 'Password berhasil diubah',
+                'message' => 'Password akun Anda baru saja diubah melalui kode OTP email pada '
+                    . now()->format('d/m/Y H:i')
+                    . '. Bila Anda tidak melakukannya, segera hubungi Administrator.',
+                'type' => 'security',
+            ]);
+
+            return response()->json([
+                'message' => 'Password berhasil diubah. Silakan login dengan password baru.',
+                'code' => 'PASSWORD_RESET_SUCCESS',
+            ], 200);
+        });
     }
 
     /**
@@ -402,11 +656,12 @@ class AuthController extends Controller
 
         $account = $user->account;
 
-        // Periksa status akun dan rekening.
+        // Periksa status akun dan rekening. Rekening yang diblokir karena PIN
+        // salah 3x tetap boleh login agar nasabah dapat mengajukan buka blokir.
         if (
             $user->status !== 'active' ||
             !$account ||
-            $account->status !== 'active'
+            ($account->status !== 'active' && !$account->pin_blocked)
         ) {
             return response()->json([
                 'message' => 'Akun atau rekening Anda sedang tidak aktif. Hubungi Administrator.',

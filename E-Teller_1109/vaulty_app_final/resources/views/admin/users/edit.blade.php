@@ -18,8 +18,20 @@
                 <div class="section-title">Formulir Ubah Pengguna</div>
                 <div class="section-sub">Perbarui informasi, hak akses, atau sandi pengguna.</div>
             </div>
-            <span class="badge {{ $user->status === 'active' ? 'badge-ok' : 'badge-danger' }}">{{ $user->status === 'active' ? 'Aktif' : 'Diblokir' }}</span>
+            <span class="badge {{ $user->status === 'active' && !($user->account?->pin_blocked) ? 'badge-ok' : 'badge-danger' }}">{{ $user->status !== 'active' ? 'Diblokir' : ($user->account?->pin_blocked ? 'Blokir (PIN)' : 'Aktif') }}</span>
         </div>
+
+        @if($user->account?->pin_blocked)
+            <div class="card-body" style="padding-bottom:0">
+                <div class="alert alert-warn" style="margin:0">
+                    Rekening ini <strong>diblokir karena PIN salah 3 kali</strong>.
+                    Buka blokir sekaligus reset PIN melalui menu
+                    <a href="{{ route('admin.reset-pin') }}">Reset PIN</a> setelah
+                    pengajuan nasabah disetujui. Mengubah status login di form ini
+                    tidak membuka blokir PIN.
+                </div>
+            </div>
+        @endif
 
         <form method="POST" action="{{ route('admin.users.update', $user) }}" enctype="multipart/form-data">
             @csrf
@@ -84,8 +96,9 @@
                             <label for="statusSelect">Status akun</label>
                             <select id="statusSelect" name="status" required>
                                 <option value="active" @selected(old('status', $user->status) == 'active')>Aktif</option>
-                                <option value="blocked" @selected(old('status', $user->status) == 'blocked')>Diblokir</option>
+                                <option value="blocked" @selected(old('status', $user->status) == 'blocked')>Nonaktif</option>
                             </select>
+                            <p class="helper">Status login pengguna. Nasabah yang sudah lulus cukup dinonaktifkan (tidak dihapus) agar riwayat transaksi tetap tersimpan. Blokir karena PIN salah 3x dikelola di menu Reset PIN.</p>
                             @error('status')<p class="form-error">{{ $message }}</p>@enderror
                         </div>
                         <div class="field">
@@ -93,11 +106,6 @@
                             <input id="userEmail" type="email" name="email" value="{{ old('email', $user->email) }}">
                             <p id="emailHint" class="helper">Email dipakai untuk kode aktivasi nasabah atau pemulihan akun pegawai.</p>
                             @error('email')<p class="form-error">{{ $message }}</p>@enderror
-                        </div>
-                        <div class="field">
-                            <label for="userPhone">No. telepon / WhatsApp</label>
-                            <input id="userPhone" type="text" name="no_telp" value="{{ old('no_telp', $user->no_telp) }}" maxlength="20" placeholder="08xxxxxxxxxx">
-                            @error('no_telp')<p class="form-error">{{ $message }}</p>@enderror
                         </div>
                     </div>
                 </div>

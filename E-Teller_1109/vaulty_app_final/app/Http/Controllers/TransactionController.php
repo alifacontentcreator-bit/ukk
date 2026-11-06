@@ -10,6 +10,7 @@ use App\Services\TransactionPostingService;
 use DomainException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class TransactionController extends Controller
 {
@@ -73,7 +74,8 @@ class TransactionController extends Controller
         return response()->json([
             'status' => $approval->status,
             'transaction_id' => $approval->transaction_id,
-            'reference_number' => $approval->transaction?->reference_number,
+            'reference_number' => $approval->transaction?->reference_number
+                ?? $approval->reference_number,
             'slip_url' => $approval->transaction_id
                 ? route('teller.transaksi.cetak', $approval->transaction_id)
                 : null,
@@ -137,6 +139,18 @@ class TransactionController extends Controller
             $account->load('user');
 
             /*
+             * PIN diblokir karena salah 3 kali: rekening memang berstatus
+             * blocked, tetapi Teller perlu pesan yang mengarahkan nasabah
+             * menyelesaikan pengajuan buka blokir + reset PIN.
+             */
+            if ($account->pin_blocked) {
+                throw new DomainException(
+                    'PIN nasabah diblokir karena salah 3 kali. Minta nasabah '
+                    . 'menyelesaikan pengajuan buka blokir + reset PIN melalui aplikasi.'
+                );
+            }
+
+            /*
              * Memastikan rekening dan nasabah aktif.
              */
             if (
@@ -146,6 +160,17 @@ class TransactionController extends Controller
             ) {
                 throw new DomainException(
                     'Rekening nasabah sedang tidak aktif atau diblokir. Transaksi ditolak.'
+                );
+            }
+
+            /*
+             * PIN belum dibuat/diatur ulang membuat notifikasi konfirmasi tidak
+             * akan bisa disetujui nasabah. Tolak lebih awal dengan pesan jelas.
+             */
+            if ($account->pin_reset_required || $account->pin_is_default) {
+                throw new DomainException(
+                    'PIN nasabah belum dibuat atau wajib diatur ulang. Minta nasabah '
+                    . 'menyelesaikan pengaturan PIN melalui aplikasi.'
                 );
             }
 
@@ -175,26 +200,11 @@ class TransactionController extends Controller
                 }
             }
 
-            if ($request->type === 'deposit') {
-                $transaction = $posting->post(
-                    $account,
-                    $teller,
-                    'deposit',
-                    (float) $request->amount,
-                    $request->description
-                );
-
-                DB::commit();
-
-                return redirect()
-                    ->route('teller.transaksi.create', [
-                        'account_number' => $account->account_number,
-                        'type' => 'deposit',
-                    ])
-                    ->with('success', 'Setoran berhasil dicatat tanpa PIN nasabah. Ref: ' . $transaction->reference_number)
-                    ->with('posted_transaction_id', $transaction->id);
-            }
-
+            /*
+             * SETORAN dan PENARIKAN sama-sama menunggu konfirmasi PIN nasabah
+             * di aplikasi mobile. Saldo baru berubah setelah nasabah menekan
+             * "Konfirmasi Transaksi" dan PIN-nya benar.
+             */
             CustomerTransactionApproval::where('account_id', $account->id)
                 ->where('status', 'pending')
                 ->where('expires_at', '<=', now())
@@ -218,6 +228,7 @@ class TransactionController extends Controller
             $approval = CustomerTransactionApproval::create([
                 'account_id' => $account->id,
                 'teller_id' => $teller->id,
+                'reference_number' => $this->generateReferenceNumber(),
                 'type' => $request->type,
                 'amount' => $request->amount,
                 'description' => $request->description,
@@ -227,6 +238,8 @@ class TransactionController extends Controller
 
             DB::commit();
 
+            $jenis = $request->type === 'deposit' ? 'Setoran' : 'Penarikan';
+
             return redirect()
                 ->route('teller.transaksi.create', [
                     'account_number' => $account->account_number,
@@ -234,8 +247,9 @@ class TransactionController extends Controller
                 ])
                 ->with(
                     'success',
-                    'Permintaan transaksi #' . $approval->id .
-                    ' dikirim ke aplikasi nasabah untuk otorisasi PIN. ' .
+                    'Permintaan transaksi #' . $approval->id . ' (' . $jenis .
+                    ' Rp ' . number_format((float) $request->amount, 0, ',', '.') .
+                    ', Ref: ' . $approval->reference_number . ') dikirim ke aplikasi nasabah untuk konfirmasi PIN. ' .
                     'Transaksi belum berhasil; tunggu persetujuan sebelum menyerahkan atau menerima uang.'
                 )
                 ->with('customer_transaction_approval_id', $approval->id);
@@ -256,5 +270,22 @@ class TransactionController extends Controller
                 'error' => 'Terjadi kesalahan sistem saat memproses transaksi. Silakan periksa kembali data atau hubungi administrator.'
             ])->withInput();
         }
+    }
+
+    /**
+     * Nomor referensi permintaan yang juga dipakai sebagai nomor referensi
+     * transaksi setelah nasabah menyetujui dengan PIN, supaya Teller dan
+     * nasabah melihat nomor yang sama pada notifikasi dan slip.
+     */
+    private function generateReferenceNumber(): string
+    {
+        do {
+            $reference = 'REF' . now()->format('ymd') . strtoupper(Str::random(6));
+        } while (
+            Transaction::where('reference_number', $reference)->exists() ||
+            CustomerTransactionApproval::where('reference_number', $reference)->exists()
+        );
+
+        return $reference;
     }
 }
