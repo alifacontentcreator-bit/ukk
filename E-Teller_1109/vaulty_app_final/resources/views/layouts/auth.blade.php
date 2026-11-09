@@ -8,7 +8,8 @@
     @stack('styles')
 </head>
 <body class="auth-shell">
-    {{-- Kolom kiri: foto gedung bleed penuh + lapisan hijau army. Kiri atas sengaja dikosongkan. --}}
+    {{-- Kolom kiri: foto gedung bleed penuh + lapisan hijau army. Papan merek
+         (logo + nama lembaga) ditempel di pojok kiri atas foto. --}}
     <aside class="auth-visual">
         <img src="{{ asset('images/gedung-smkn1-bantul.jpg') }}" alt="Gedung SMK Negeri 1 Bantul">
         {{-- Dekorasi halus: garis lingkaran konsentris putih di pojok kanan atas foto. --}}
@@ -19,6 +20,7 @@
             <circle cx="300" cy="0" r="192" />
         </svg>
         <div class="auth-visual-inner">
+            <x-auth-identity />
             <div class="auth-visual-body">
                 <span class="auth-chip">
                     <x-icon name="shield" />
@@ -51,16 +53,9 @@
 
     <main class="auth-panel">
         <div class="auth-form-wrap">
-            {{-- Blok identitas: tampil di semua ukuran layar, termasuk saat foto disembunyikan. --}}
-            <div class="auth-identity">
-                <span class="auth-identity-mark">
-                    <img src="{{ asset('images/logo-smkn1-bantul.png') }}" alt="Logo SMK Negeri 1 Bantul">
-                </span>
-                <span>
-                    <strong class="auth-identity-name">{{ config('app.name') }}</strong>
-                    <span class="auth-identity-sub">Sistem Tabungan Siswa</span>
-                </span>
-            </div>
+            {{-- Identitas ringkas: hanya tampil di layar sempit, yaitu saat panel foto
+                 (tempat papan merek utama) disembunyikan. --}}
+            <x-auth-identity />
 
             @php($headIcon = trim($__env->yieldContent('head-icon')))
             @if($headIcon !== '')

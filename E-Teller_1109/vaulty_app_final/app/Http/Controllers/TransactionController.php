@@ -6,6 +6,7 @@ use App\Models\Transaction;
 use App\Models\Account;
 use App\Models\CustomerTransactionApproval;
 use App\Models\SystemSetting;
+use App\Services\TransactionActivityLogger;
 use App\Services\TransactionPostingService;
 use DomainException;
 use Illuminate\Http\Request;
@@ -238,6 +239,16 @@ class TransactionController extends Controller
 
             DB::commit();
 
+            // Jurnal Audit Supervisor: permintaan transaksi tercatat walau
+            // nasabah belum mengonfirmasi PIN (status: menunggu konfirmasi).
+            TransactionActivityLogger::diajukan($teller->id, [
+                'type' => $request->type,
+                'amount' => $request->amount,
+                'account_number' => $account->account_number,
+                'reference_number' => $approval->reference_number,
+                'nasabah' => $account->user?->name,
+            ], 'Permintaan dikirim ke aplikasi nasabah, menunggu konfirmasi PIN.');
+
             $jenis = $request->type === 'deposit' ? 'Setoran' : 'Penarikan';
 
             return redirect()
@@ -257,6 +268,17 @@ class TransactionController extends Controller
         } catch (DomainException $e) {
             DB::rollBack();
 
+            // Jurnal Audit Supervisor: transaksi gagal tetap tercatat + alasannya.
+            TransactionActivityLogger::gagal(
+                auth()->id(),
+                [
+                    'type' => $request->input('type'),
+                    'amount' => $request->input('amount'),
+                    'account_number' => $request->input('account_number'),
+                ],
+                $e->getMessage()
+            );
+
             return back()->withErrors([
                 'error' => $e->getMessage()
             ])->withInput();
@@ -265,6 +287,16 @@ class TransactionController extends Controller
             DB::rollBack();
 
             report($e);
+
+            TransactionActivityLogger::gagal(
+                auth()->id(),
+                [
+                    'type' => $request->input('type'),
+                    'amount' => $request->input('amount'),
+                    'account_number' => $request->input('account_number'),
+                ],
+                'Kesalahan sistem saat memproses transaksi.'
+            );
 
             return back()->withErrors([
                 'error' => 'Terjadi kesalahan sistem saat memproses transaksi. Silakan periksa kembali data atau hubungi administrator.'

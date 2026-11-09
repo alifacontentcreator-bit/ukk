@@ -1,25 +1,34 @@
 @php
+    use App\Models\ReportNotification;
+    use Illuminate\Support\Facades\Schema;
+
     $bellUser = auth()->user();
 
-    // Notifikasi hanya relevan untuk Teller. Tabel diperiksa lebih dahulu
-    // agar halaman tetap tampil walau migrasi belum dijalankan.
+    // Jumlah notifikasi belum dibaca (tabel diperiksa agar aman bila migrasi belum jalan).
     $bellUnread = 0;
 
-    if ($bellUser
-        && $bellUser->role === 'teller'
-        && \Illuminate\Support\Facades\Schema::hasTable('report_notifications')) {
-        $bellUnread = \App\Models\ReportNotification::unreadCountFor((int) $bellUser->id);
+    if ($bellUser && Schema::hasTable('report_notifications')) {
+        $bellUnread = ReportNotification::unreadCountFor((int) $bellUser->id);
     }
+
+    // Tujuan halaman notifikasi berbeda per peran.
+    $bellUrl = match ($bellUser?->role) {
+        'teller' => route('teller.notifikasi'),
+        'supervisor' => route('supervisor.notifikasi'),
+        'admin' => route('admin.notifikasi'),
+        default => null,
+    };
 @endphp
 
-@if($bellUser && $bellUser->role === 'teller')
+@if($bellUrl)
     <a class="topbar-icon-btn"
-       href="{{ route('teller.notifikasi') }}"
-       title="Notifikasi laporan ({{ $bellUnread }} belum dibaca)"
-       aria-label="Notifikasi laporan, {{ $bellUnread }} belum dibaca">
+       href="{{ $bellUrl }}"
+       title="Notifikasi ({{ $bellUnread }} belum dibaca)"
+       aria-label="Notifikasi, {{ $bellUnread }} belum dibaca">
         <x-icon name="bell" />
         @if($bellUnread > 0)
             <span class="dot">{{ $bellUnread > 9 ? '9+' : $bellUnread }}</span>
         @endif
     </a>
 @endif
+

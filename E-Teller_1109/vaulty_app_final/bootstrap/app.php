@@ -19,6 +19,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => \App\Http\Middleware\RoleMiddleware::class,
             'customer.active' => \App\Http\Middleware\EnsureActiveCustomer::class,
             'pin.ready' => \App\Http\Middleware\EnsurePinChanged::class,
+            // Penjagaan baru: Teller hanya boleh bertransaksi pada hari dia bertugas.
+            'teller.bertugas' => \App\Http\Middleware\PastikanTellerBertugas::class,
         ]);
 
     })

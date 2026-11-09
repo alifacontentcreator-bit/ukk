@@ -1,6 +1,11 @@
 @extends('layouts.shell')
 @section('role', 'Administrator')
 @section('no-page-head', '1')
+
+@section('topbar-actions')
+    <x-report-notification-bell />
+@endsection
+
 @section('nav')
             @php
                 $pendingPinResets = \Illuminate\Support\Facades\Schema::hasTable('credential_reset_requests')

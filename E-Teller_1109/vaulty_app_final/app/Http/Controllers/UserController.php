@@ -10,6 +10,8 @@ use Illuminate\Http\Request;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
@@ -626,12 +628,6 @@ class UserController extends Controller
                 'in:admin,supervisor,teller,customer',
             ],
 
-            'password' => [
-                'nullable',
-                'string',
-                'min:6',
-            ],
-
             'photo' => [
                 'nullable',
                 'file',
@@ -681,7 +677,27 @@ class UserController extends Controller
             'nis.digits' => 'Nomor induk siswa wajib terdiri dari tepat 5 angka.',
             'nip.unique' => 'Nomor induk pegawai ini sudah digunakan oleh pengguna lain.',
             'username.unique' => 'Nama pengguna ini sudah digunakan.',
+            'photo.uploaded' => 'Foto profil gagal diunggah. Ukuran berkas melebihi batas server; pilih foto yang lebih kecil (maksimal 5 MB).',
+            'photo.file' => 'Foto profil gagal diunggah. Pilih berkas gambar yang valid.',
+            'photo.mimes' => 'Foto profil harus berupa gambar (JPG, PNG, WEBP, GIF, BMP, atau SVG).',
+            'photo.max' => 'Ukuran foto profil maksimal 5 MB. Pilih foto yang lebih kecil.',
         ]);
+
+        /*
+         * Jaring pengaman: formulir menandai "photo_expected" saat admin sudah
+         * memilih berkas foto. Bila berkas itu tidak sampai ke server (mis.
+         * ukurannya melebihi batas PHP sehingga dianggap tidak ada), permintaan
+         * ditolak dengan pesan yang jelas. Tanpa ini, penyimpanan tetap
+         * "berhasil" padahal foto profil tidak ikut berganti.
+         */
+        if ($request->boolean('photo_expected') && !$request->hasFile('photo')) {
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'photo' => 'Foto profil gagal diunggah, kemungkinan ukurannya melebihi batas server. '
+                        . 'Pilih foto maksimal 5 MB lalu simpan kembali.',
+                ]);
+        }
 
         $data = [
             'name' => $request->name,
@@ -706,13 +722,21 @@ class UserController extends Controller
                 : ($request->role === 'customer' ? $user->alamat : null),
         ];
 
-        if ($request->filled('password')) {
-            $data['password'] = Hash::make($request->password);
-        }
-
+        /*
+         * Foto profil hanya diganti bila admin benar-benar memilih berkas baru.
+         * Berkas foto lama dihapus dari disk "public" supaya tidak menumpuk
+         * berkas yatim dan tidak ada gambar lama yang tertinggal.
+         */
         if ($request->hasFile('photo')) {
-            $data['photo'] = $request->file('photo')
-                ->store('photos', 'public');
+            $fotoBaru = $request->file('photo')->store('photos', 'public');
+
+            if ($fotoBaru) {
+                $data['photo'] = $fotoBaru;
+
+                if (filled($user->photo) && $user->photo !== $fotoBaru) {
+                    Storage::disk('public')->delete($user->photo);
+                }
+            }
         }
 
         if (
@@ -733,7 +757,12 @@ class UserController extends Controller
 
         return redirect()
             ->route('admin.users')
-            ->with('success', 'Data pengguna berhasil diperbarui.');
+            ->with(
+                'success',
+                array_key_exists('photo', $data)
+                    ? 'Data pengguna dan foto profil berhasil diperbarui.'
+                    : 'Data pengguna berhasil diperbarui.'
+            );
     }
 
     /**
@@ -778,30 +807,12 @@ class UserController extends Controller
         }
 
         /*
-         * AKUN NASABAH TIDAK PERNAH DIHAPUS.
-         * Nasabah yang sudah lulus (alumni) cukup dinonaktifkan supaya rekening,
-         * saldo, dan seluruh riwayat transaksi tetap utuh. Dengan begitu Jurnal
-         * Audit Supervisor tetap memuat transaksi dari dulu sampai sekarang.
-         */
-        if ($user->role === 'customer') {
-            $sudahNonaktif = $user->status !== 'active';
-
-            if (!$sudahNonaktif) {
-                $user->forceFill(['status' => 'blocked'])->save();
-            }
-
-            return back()->with(
-                'success',
-                $sudahNonaktif
-                    ? "Akun nasabah {$user->name} sudah nonaktif. Data dan riwayat transaksinya tetap tersimpan."
-                    : "Akun nasabah {$user->name} dinonaktifkan (tidak dihapus). Riwayat transaksi tetap tersimpan."
-            );
-        }
-
-        /*
-         * Transaksi, laporan harian, dan koreksi memakai foreign key RESTRICT
-         * agar jejak audit tidak ikut terhapus. Tolak lebih awal supaya admin
-         * tidak melihat error SQL 1451, dan arahkan ke fitur nonaktifkan.
+         * PENGHAPUSAN BERLAKU UNTUK SEMUA ROLE, TERMASUK NASABAH.
+         * Rekening nasabah memakai foreign key cascade sehingga ikut terhapus
+         * bersama akunnya, tetapi transaksi, laporan harian, dan koreksi memakai
+         * RESTRICT agar jejak audit tidak ikut hilang. Karena itu pemeriksaan
+         * dilakukan lebih awal supaya admin menerima pesan yang bisa dibaca,
+         * bukan error SQL 1451.
          */
         $blockers = $user->deletionBlockers();
 
@@ -809,15 +820,30 @@ class UserController extends Controller
             return back()->withErrors([
                 'error' => sprintf(
                     'Pengguna %s tidak dapat dihapus karena masih memiliki %s. '
-                    . 'Jejak transaksi dan audit wajib dipertahankan; gunakan tombol nonaktifkan bila akun ini sudah tidak dipakai.',
+                    . 'Jejak transaksi dan audit wajib dipertahankan; gunakan tombol %s bila akun ini sudah tidak dipakai.',
                     $user->name,
-                    implode(', ', $blockers)
+                    implode(', ', $blockers),
+                    $user->role === 'customer' ? 'nonaktifkan' : 'blokir'
                 ),
             ]);
         }
 
         try {
-            DB::transaction(fn () => $user->delete());
+            DB::transaction(function () use ($user) {
+                /*
+                 * Token login aplikasi mobile (Sanctum) tidak memakai foreign key,
+                 * jadi dicabut manual agar sesi di perangkat nasabah/petugas tidak
+                 * tertinggal setelah akunnya dihapus.
+                 */
+                if (Schema::hasTable('personal_access_tokens')) {
+                    DB::table('personal_access_tokens')
+                        ->where('tokenable_type', $user->getMorphClass())
+                        ->where('tokenable_id', $user->getKey())
+                        ->delete();
+                }
+
+                $user->delete();
+            });
         } catch (QueryException $e) {
             /*
              * Jaring pengaman bila masih ada tabel lain yang menunjuk ke user
@@ -834,7 +860,9 @@ class UserController extends Controller
 
         return back()->with(
             'success',
-            'Pengguna berhasil dihapus secara permanen.'
+            $user->role === 'customer'
+                ? "Akun nasabah {$user->name} berhasil dihapus permanen beserta rekening, notifikasi, dan data QR-nya."
+                : "Pengguna {$user->name} berhasil dihapus secara permanen."
         );
     }
 

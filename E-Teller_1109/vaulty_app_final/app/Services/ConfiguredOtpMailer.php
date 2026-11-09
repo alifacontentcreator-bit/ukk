@@ -5,14 +5,35 @@ namespace App\Services;
 use App\Mail\SystemNotification;
 use App\Models\SystemSetting;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use RuntimeException;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
+use Throwable;
 
+/**
+ * Pengirim email sistem: kode aktivasi nasabah, kode OTP lupa password,
+ * tautan atur ulang sandi, dan email uji SMTP.
+ *
+ * Sumber pengiriman dicoba berurutan agar hosting tetap bisa mengirim email
+ * walaupun `.env` di hosting belum diisi lengkap:
+ *
+ *   1. SMTP dari `.env` (`MAIL_MAILER=smtp` + `MAIL_HOST`, `MAIL_USERNAME`, ...).
+ *   2. SMTP dari menu Admin > Konfigurasi Sistem (pengaturan `otp_smtp_*`).
+ *   3. Fungsi `mail()` milik hosting sebagai cadangan terakhir, memakai alamat
+ *      pengirim pada domain aplikasi supaya tidak melanggar SPF/DKIM.
+ *
+ * Setiap kegagalan dicatat ke `storage/logs/laravel.log` beserta pesan aslinya
+ * (port diblokir, sandi aplikasi salah, skema TLS tidak didukung, dan
+ * sebagainya) sehingga Administrator dapat memperbaiki penyebabnya.
+ */
 class ConfiguredOtpMailer
 {
     private const DEFAULT_FROM_NAME = 'LKM Mitra Siswa Abadi';
+
+    /** Batas waktu koneksi SMTP agar permintaan API tidak menggantung. */
+    private const SMTP_TIMEOUT_SECONDS = 15;
 
     public function sendTestEmail(string $recipient): void
     {
@@ -89,63 +110,207 @@ class ConfiguredOtpMailer
             'otp_smtp_from_name',
         ])->pluck('value', 'key');
 
-        $environment = config('mail.mailers.smtp');
+        $environment = (array) config('mail.mailers.smtp');
         $environmentIsReady = config('mail.default') === 'smtp'
             && filled($environment['host'] ?? null)
             && filled($environment['username'] ?? null)
             && filled($environment['password'] ?? null)
             && filled(config('mail.from.address'));
 
+        // Semua penyebab kegagalan dikumpulkan agar pesan pada log (dan
+        // halaman Admin) menyebutkan alasan sebenarnya, bukan hanya "gagal".
+        $failures = [];
+
+        // 1) SMTP yang diisi pada .env hosting.
         if ($environmentIsReady) {
-            $host = $environment['host'];
-            $port = (int) ($environment['port'] ?? 587);
-            $scheme = $environment['scheme'] ?? null;
-            $username = $environment['username'];
-            $password = $environment['password'];
-            $fromAddress = config('mail.from.address');
-            $fromName = config('mail.from.name', self::DEFAULT_FROM_NAME);
-        } elseif (($settings['otp_smtp_enabled'] ?? '0') === '1') {
-            $encryptedPassword = $settings['otp_smtp_password'] ?? '';
-            if (!$encryptedPassword || empty($settings['otp_smtp_host']) || empty($settings['otp_smtp_from_address'])) {
-                throw new RuntimeException('Konfigurasi SMTP belum lengkap.');
-            }
             try {
-                $password = Crypt::decryptString($encryptedPassword);
-            } catch (\Throwable $exception) {
-                throw new RuntimeException('Sandi SMTP tidak dapat dibuka. Simpan ulang pengaturan SMTP.', 0, $exception);
+                $this->sendUsingSmtp($recipient, $notification, [
+                    'host' => (string) $environment['host'],
+                    'port' => (int) ($environment['port'] ?? 587),
+                    'scheme' => $environment['scheme'] ?? null,
+                    'username' => (string) $environment['username'],
+                    'password' => (string) $environment['password'],
+                    'from_address' => (string) config('mail.from.address'),
+                    'from_name' => (string) (config('mail.from.name') ?: self::DEFAULT_FROM_NAME),
+                ]);
+
+                return;
+            } catch (Throwable $exception) {
+                $failures[] = 'SMTP .env: ' . $exception->getMessage();
+                $this->logFailure('SMTP .env', $exception);
             }
-            $host = $settings['otp_smtp_host'];
-            $port = (int) ($settings['otp_smtp_port'] ?? 587);
-            $scheme = ($settings['otp_smtp_scheme'] ?? 'starttls') === 'smtps' ? 'smtps' : null;
-            $username = $settings['otp_smtp_username'] ?? null;
-            $fromAddress = $settings['otp_smtp_from_address'];
-            $fromName = $settings['otp_smtp_from_name'] ?: self::DEFAULT_FROM_NAME;
-        } else {
-            throw new RuntimeException('SMTP belum diaktifkan pada Konfigurasi Sistem atau .env.');
         }
+
+        // 2) SMTP yang disimpan Administrator lewat menu Konfigurasi Sistem.
+        if (($settings['otp_smtp_enabled'] ?? '0') === '1') {
+            try {
+                $this->sendUsingSmtp(
+                    $recipient,
+                    $notification,
+                    $this->databaseSmtpConfig($settings)
+                );
+
+                return;
+            } catch (Throwable $exception) {
+                $failures[] = 'SMTP Konfigurasi Sistem: ' . $exception->getMessage();
+                $this->logFailure('SMTP Konfigurasi Sistem', $exception);
+            }
+        }
+
+        // 3) Cadangan terakhir: fungsi mail() milik hosting, berguna ketika
+        //    hosting memblokir koneksi keluar ke port SMTP 465/587.
+        try {
+            $this->sendUsingHostMail($recipient, $notification);
+
+            return;
+        } catch (Throwable $exception) {
+            $failures[] = 'mail() hosting: ' . $exception->getMessage();
+            $this->logFailure('mail() hosting', $exception);
+        }
+
+        throw new RuntimeException(
+            'Email belum dapat dikirim. ' . implode(' | ', $failures)
+        );
+    }
+
+    /**
+     * Menyusun data SMTP dari tabel `system_settings` (menu Konfigurasi Sistem).
+     *
+     * @param  \Illuminate\Support\Collection  $settings
+     * @return array<string, mixed>
+     */
+    private function databaseSmtpConfig($settings): array
+    {
+        $encryptedPassword = (string) ($settings['otp_smtp_password'] ?? '');
+        $host = trim((string) ($settings['otp_smtp_host'] ?? ''));
+        $fromAddress = trim((string) ($settings['otp_smtp_from_address'] ?? ''));
+
+        if ($host === '' || $fromAddress === '' || $encryptedPassword === '') {
+            throw new RuntimeException(
+                'Konfigurasi SMTP belum lengkap (host, sandi, atau alamat pengirim kosong).'
+            );
+        }
+
+        try {
+            $password = Crypt::decryptString($encryptedPassword);
+        } catch (\Throwable $exception) {
+            throw new RuntimeException(
+                'Sandi SMTP tidak dapat dibuka. Simpan ulang pengaturan SMTP.',
+                0,
+                $exception
+            );
+        }
+
+        return [
+            'host' => $host,
+            'port' => (int) ($settings['otp_smtp_port'] ?? 587),
+            'scheme' => ($settings['otp_smtp_scheme'] ?? 'starttls') === 'smtps' ? 'smtps' : null,
+            'username' => (string) ($settings['otp_smtp_username'] ?? ''),
+            'password' => $password,
+            'from_address' => $fromAddress,
+            'from_name' => trim((string) ($settings['otp_smtp_from_name'] ?? '')) ?: self::DEFAULT_FROM_NAME,
+        ];
+    }
+
+    /**
+     * Mengirim email memakai transport SMTP dengan konfigurasi tertentu.
+     *
+     * @param  array<string, mixed>  $config
+     */
+    private function sendUsingSmtp(string $recipient, SystemNotification $notification, array $config): void
+    {
+        $port = (int) ($config['port'] ?? 587);
+
+        // Skema TLS ditentukan dari port, bukan dari teks bebas pada .env.
+        // Port 465 memakai TLS langsung (smtps), port lain memakai STARTTLS
+        // otomatis. Nilai lain (mis. MAIL_SCHEME=starttls) ditolak Symfony
+        // dengan UnsupportedSchemeException, jadi tidak pernah diteruskan.
+        $scheme = ($port === 465 || ($config['scheme'] ?? null) === 'smtps') ? 'smtps' : null;
 
         config([
             'mail.mailers.smtp.transport' => 'smtp',
-            'mail.mailers.smtp.host' => $host,
+            'mail.mailers.smtp.host' => $config['host'],
             'mail.mailers.smtp.port' => $port,
             'mail.mailers.smtp.scheme' => $scheme,
-            'mail.mailers.smtp.username' => $username,
-            'mail.mailers.smtp.password' => $password,
-            'mail.mailers.smtp.timeout' => 15,
-            'mail.from.address' => $fromAddress,
-            'mail.from.name' => $fromName,
+            'mail.mailers.smtp.username' => ($config['username'] ?? '') !== '' ? $config['username'] : null,
+            'mail.mailers.smtp.password' => $config['password'] ?? null,
+            'mail.mailers.smtp.timeout' => self::SMTP_TIMEOUT_SECONDS,
+            'mail.from.address' => $config['from_address'],
+            'mail.from.name' => $config['from_name'],
         ]);
 
-        // Identitas pengirim dibuat konsisten dengan akun SMTP: alamat pengirim,
-        // Reply-To pada domain yang sama, dan Message-ID berdomain pengirim
-        // (bukan hostname komputer lokal yang justru menaikkan skor spam).
+        Mail::forgetMailers();
+
+        $this->send($recipient, $notification, 'smtp');
+    }
+
+    /**
+     * Mengirim email lewat fungsi mail() milik hosting (transport `mail`).
+     */
+    private function sendUsingHostMail(string $recipient, SystemNotification $notification): void
+    {
+        if (!function_exists('mail')) {
+            throw new RuntimeException('Fungsi mail() tidak tersedia pada server ini.');
+        }
+
+        config([
+            'mail.mailers.host_mail' => ['transport' => 'mail'],
+            'mail.from.address' => $this->fallbackFromAddress(),
+            'mail.from.name' => (string) (config('mail.from.name') ?: self::DEFAULT_FROM_NAME),
+        ]);
+
+        Mail::forgetMailers();
+
+        $this->send($recipient, $notification, 'host_mail');
+    }
+
+    /**
+     * Alamat pengirim untuk transport mail(): sebaiknya memakai domain
+     * aplikasi sendiri agar SPF/DKIM hosting tetap cocok dan email tidak
+     * langsung dianggap spam.
+     */
+    private function fallbackFromAddress(): string
+    {
+        $configured = trim((string) config('mail.fallback_from_address', ''));
+
+        if (filter_var($configured, FILTER_VALIDATE_EMAIL)) {
+            return $configured;
+        }
+
+        $host = (string) parse_url((string) config('app.url'), PHP_URL_HOST);
+
+        if ($host !== ''
+            && $host !== 'localhost'
+            && str_contains($host, '.')
+            && !filter_var($host, FILTER_VALIDATE_IP)) {
+            return 'no-reply@' . $host;
+        }
+
+        return 'no-reply@' . (gethostname() ?: 'localhost');
+    }
+
+    /**
+     * Membangun ulang mailable lalu mengirimkannya memakai mailer terpilih.
+     */
+    private function send(string $recipient, SystemNotification $notification, string $mailer): void
+    {
+        $fromAddress = (string) config('mail.from.address');
+        $fromName = (string) (config('mail.from.name') ?: self::DEFAULT_FROM_NAME);
+
+        // Identitas pengirim dibuat konsisten dengan akun pengirim: alamat
+        // pengirim, Reply-To pada domain yang sama, dan Message-ID berdomain
+        // pengirim (bukan hostname server yang justru menaikkan skor spam).
         $domain = str_contains($fromAddress, '@')
             ? substr($fromAddress, strrpos($fromAddress, '@') + 1)
             : '';
         $domain = preg_match('/^[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/', $domain) ? $domain : 'localhost';
         $messageId = bin2hex(random_bytes(12)) . '@' . $domain;
 
-        $notification
+        // Salinan baru untuk setiap percobaan supaya header Message-ID dan
+        // Reply-To tidak menumpuk ketika pengiriman dicoba lebih dari sekali.
+        $mailable = clone $notification;
+
+        $mailable
             ->from($fromAddress, $fromName)
             ->withSymfonyMessage(function ($message) use ($fromAddress, $fromName, $messageId) {
                 if ($message instanceof Email) {
@@ -157,7 +322,19 @@ class ConfiguredOtpMailer
                 }
             });
 
-        Mail::mailer('smtp')->to($recipient)->send($notification);
+        Mail::mailer($mailer)->to($recipient)->send($mailable);
+    }
+
+    /**
+     * Mencatat alasan kegagalan agar dapat diperiksa pada
+     * `storage/logs/laravel.log` di hosting.
+     */
+    private function logFailure(string $channel, Throwable $exception): void
+    {
+        Log::warning('Pengiriman email lewat ' . $channel . ' gagal.', [
+            'error' => $exception->getMessage(),
+            'exception' => $exception::class,
+        ]);
     }
 
 }

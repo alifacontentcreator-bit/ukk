@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Account;
 use App\Models\CustomerTransactionApproval;
 use App\Services\PinService;
+use App\Services\TransactionActivityLogger;
 use App\Services\TransactionPostingService;
 use DomainException;
 use Illuminate\Http\JsonResponse;
@@ -77,6 +78,15 @@ class CustomerTransactionApprovalController extends Controller
                         'processed_at' => now(),
                     ]);
 
+                    // Jurnal Audit: percobaan gagal karena kedaluwarsa.
+                    TransactionActivityLogger::gagal($lockedApproval->teller_id, [
+                        'type' => $lockedApproval->type,
+                        'amount' => $lockedApproval->amount,
+                        'account_number' => $account->account_number,
+                        'reference_number' => $lockedApproval->reference_number,
+                        'nasabah' => $account->user?->name,
+                    ], 'Kedaluwarsa: nasabah tidak mengonfirmasi PIN sebelum batas waktu.');
+
                     return response()->json([
                         'message' => 'Permintaan transaksi sudah kedaluwarsa. Minta Teller membuat permintaan baru.',
                         'code' => 'APPROVAL_EXPIRED',
@@ -96,6 +106,17 @@ class CustomerTransactionApprovalController extends Controller
                         'processed_at' => now(),
                     ]);
 
+                    // Jurnal Audit: percobaan gagal karena PIN terkunci/diblokir.
+                    TransactionActivityLogger::gagal($lockedApproval->teller_id, [
+                        'type' => $lockedApproval->type,
+                        'amount' => $lockedApproval->amount,
+                        'account_number' => $account->account_number,
+                        'reference_number' => $lockedApproval->reference_number,
+                        'nasabah' => $account->user?->name,
+                    ], $check['reset_required']
+                        ? 'PIN diblokir karena salah 3 kali. Nasabah wajib reset PIN.'
+                        : 'PIN terkunci sementara karena percobaan salah berulang.');
+
                     return response()->json([
                         'message' => $pins->lockedMessage($check['retry_after']),
                         'code' => $check['reset_required'] ? 'PIN_BLOCKED' : 'PIN_LOCKED',
@@ -104,6 +125,15 @@ class CustomerTransactionApprovalController extends Controller
                 }
 
                 if ($check['status'] === 'wrong') {
+                    // Jurnal Audit: percobaan gagal karena PIN salah.
+                    TransactionActivityLogger::gagal($lockedApproval->teller_id, [
+                        'type' => $lockedApproval->type,
+                        'amount' => $lockedApproval->amount,
+                        'account_number' => $account->account_number,
+                        'reference_number' => $lockedApproval->reference_number,
+                        'nasabah' => $account->user?->name,
+                    ], 'PIN salah. Sisa percobaan: ' . $check['attempts_left'] . '.');
+
                     return response()->json([
                         'message' => 'PIN salah. Sisa percobaan: ' . $check['attempts_left'] . '.',
                         'code' => 'PIN_INVALID',
@@ -128,6 +158,9 @@ class CustomerTransactionApprovalController extends Controller
                     'processed_at' => now(),
                 ]);
 
+                // Jejak audit "transaksi berhasil" ditulis di TransactionPostingService
+                // (satu tempat) supaya tidak tercatat ganda.
+
                 return response()->json([
                     'message' => 'Transaksi berhasil disetujui.',
                     'code' => 'TRANSACTION_APPROVED',
@@ -139,7 +172,7 @@ class CustomerTransactionApprovalController extends Controller
                 ]);
             });
         } catch (DomainException $exception) {
-            DB::transaction(function () use ($approval) {
+            $saldoGagal = DB::transaction(function () use ($approval) {
                 $lockedApproval = CustomerTransactionApproval::whereKey($approval->id)
                     ->lockForUpdate()
                     ->first();
@@ -149,8 +182,26 @@ class CustomerTransactionApprovalController extends Controller
                         'status' => 'rejected',
                         'processed_at' => now(),
                     ]);
+
+                    return $lockedApproval;
                 }
+
+                return null;
             });
+
+            // Jurnal Audit: transaksi gagal saat posting (mis. saldo mengendap
+            // tidak cukup) beserta alasannya.
+            if ($saldoGagal) {
+                $saldoGagal->loadMissing('account.user');
+
+                TransactionActivityLogger::gagal($saldoGagal->teller_id, [
+                    'type' => $saldoGagal->type,
+                    'amount' => $saldoGagal->amount,
+                    'account_number' => $saldoGagal->account?->account_number,
+                    'reference_number' => $saldoGagal->reference_number,
+                    'nasabah' => $saldoGagal->account?->user?->name,
+                ], $exception->getMessage());
+            }
 
             return response()->json([
                 'message' => $exception->getMessage(),
@@ -187,6 +238,15 @@ class CustomerTransactionApprovalController extends Controller
                 'status' => 'rejected',
                 'processed_at' => now(),
             ]);
+
+            // Jurnal Audit: nasabah menolak permintaan transaksi.
+            TransactionActivityLogger::gagal($lockedApproval->teller_id, [
+                'type' => $lockedApproval->type,
+                'amount' => $lockedApproval->amount,
+                'account_number' => $account->account_number,
+                'reference_number' => $lockedApproval->reference_number,
+                'nasabah' => $account->user?->name,
+            ], 'Ditolak nasabah melalui aplikasi. Saldo tidak berubah.');
 
             return response()->json([
                 'message' => 'Permintaan transaksi ditolak. Saldo tidak berubah.',

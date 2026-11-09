@@ -1,0 +1,37 @@
+====================================================================
+CONTOH BLOK MAIL UNTUK FILE .env DI HOSTING
+(vaultybankmini.web.id)
+====================================================================
+
+Buka File Manager hosting > file ".env" (sejajar dengan folder app/ dan
+config/, BUKAN di dalam public/), lalu ganti baris-baris MAIL_... menjadi:
+
+--------------------------------------------------------------------
+MAIL_MAILER=smtp
+MAIL_SCHEME=null
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=465
+MAIL_USERNAME=akunukk93@gmail.com
+MAIL_PASSWORD=mwxeqleoxpyhycrq
+MAIL_FROM_ADDRESS=akunukk93@gmail.com
+MAIL_FROM_NAME="LKM Mitra Siswa Abadi"
+--------------------------------------------------------------------
+
+PENTING:
+1. MAIL_SCHEME harus "null" (atau dikosongkan). JANGAN diisi starttls/ssl,
+   karena aplikasi menentukan enkripsi dari MAIL_PORT:
+   - 465 = SMTPS (TLS langsung)
+   - 587 / 25 = STARTTLS
+2. MAIL_PASSWORD = Sandi Aplikasi Google 16 karakter (bukan sandi login).
+3. Bila port 465 diblokir hosting, ubah MAIL_PORT=587.
+4. Bila SMTP tetap gagal, tambahkan alamat pengirim cadangan pada domain
+   sendiri (dipakai jalur mail() hosting):
+   MAIL_FALLBACK_FROM_ADDRESS=no-reply@vaultybankmini.web.id
+5. Setelah menyimpan .env, WAJIB menjalankan (Terminal hosting):
+   php artisan config:clear
+
+Cara memastikan berhasil (salah satu):
+- Terminal hosting : php artisan mail:test email-anda@gmail.com
+- Web Admin        : Konfigurasi > bagian SMTP > "Kirim Email Uji"
+- Aplikasi nasabah : Aktivasi Akun > isi NIS > "Kirim kode ke email terdaftar"
+                     (harus muncul: "Kode aktivasi sudah dikirim ke ir***67@gmail.com")

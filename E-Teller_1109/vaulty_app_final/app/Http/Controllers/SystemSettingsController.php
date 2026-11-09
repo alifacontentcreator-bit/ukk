@@ -8,6 +8,7 @@ use App\Services\AccountNumberGenerator;
 use App\Services\ConfiguredOtpMailer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Str;
 
 class SystemSettingsController extends Controller
 {
@@ -124,7 +125,13 @@ class SystemSettingsController extends Controller
                 $mailService->sendTestEmail($validated['test_email']);
             } catch (\Throwable $exception) {
                 report($exception);
-                return back()->withErrors(['smtp' => 'Email uji gagal dikirim. Periksa host, port, SSL/TLS, nama pengguna, dan sandi aplikasi SMTP.'])->withInput();
+                return back()->withErrors([
+                    'smtp' => 'Email uji gagal dikirim: '
+                        . Str::limit($exception->getMessage(), 300)
+                        . ' Periksa host, port, enkripsi (465 = SMTPS, 587 = STARTTLS), '
+                        . 'nama pengguna, dan sandi aplikasi SMTP. Rincian juga dicatat pada '
+                        . 'storage/logs/laravel.log.',
+                ])->withInput();
             }
 
             return back()->with('success', 'Email uji berhasil dikirim. Periksa kotak masuk dan folder spam.');

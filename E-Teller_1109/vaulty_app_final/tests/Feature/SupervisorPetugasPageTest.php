@@ -32,6 +32,7 @@ class SupervisorPetugasPageTest extends TestCase
             'kelas' => 'X TKJ 1',
             'password' => 'password',
             'role' => 'teller',
+            'status' => 'active',
         ]);
 
         User::create([
@@ -40,6 +41,7 @@ class SupervisorPetugasPageTest extends TestCase
             'kelas' => 'XI AKL 2',
             'password' => 'password',
             'role' => 'teller',
+            'status' => 'blocked',
         ]);
     }
 
@@ -64,6 +66,52 @@ class SupervisorPetugasPageTest extends TestCase
             ->assertOk()
             ->assertSee('Sari Teller')
             ->assertDontSee('Budi Teller');
+    }
+
+    public function test_filter_cari_nama_dan_kelas_berfungsi(): void
+    {
+        // Filter nama.
+        $this->actingAs($this->supervisor)
+            ->get(route('supervisor.petugas', ['nama' => 'Sari']))
+            ->assertOk()
+            ->assertSee('Sari Teller')
+            ->assertDontSee('Budi Teller');
+
+        // Filter kelas.
+        $this->actingAs($this->supervisor)
+            ->get(route('supervisor.petugas', ['kelas' => 'X TKJ']))
+            ->assertOk()
+            ->assertSee('Budi Teller')
+            ->assertDontSee('Sari Teller');
+
+        // Kombinasi nama + kelas yang tidak cocok → hasil kosong.
+        $this->actingAs($this->supervisor)
+            ->get(route('supervisor.petugas', ['nama' => 'Sari', 'kelas' => 'X TKJ']))
+            ->assertOk()
+            ->assertSee('Tidak ada petugas yang cocok')
+            ->assertDontSee('Sari Teller');
+    }
+
+    public function test_tidak_ada_filter_status_akun_aktif_atau_diblokir(): void
+    {
+        $response = $this->actingAs($this->supervisor)
+            ->get(route('supervisor.petugas'))
+            ->assertOk();
+
+        // Hanya filter cari nama & kelas.
+        $response->assertSee('Cari nama')->assertSee('Cari kelas');
+        $response->assertDontSee('Status akun');
+        $response->assertDontSee('Semua status');
+        $response->assertDontSee('Diblokir');
+        $response->assertDontSee('value="active"', false);
+        $response->assertDontSee('value="blocked"', false);
+
+        // Parameter status lama diabaikan: seluruh teller tetap tampil.
+        $this->actingAs($this->supervisor)
+            ->get(route('supervisor.petugas', ['status' => 'blocked']))
+            ->assertOk()
+            ->assertSee('Budi Teller')
+            ->assertSee('Sari Teller');
     }
 
     public function test_parameter_wa_lama_diabaikan(): void

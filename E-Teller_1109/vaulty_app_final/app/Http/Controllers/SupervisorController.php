@@ -8,7 +8,9 @@ use App\Models\AccountingJournal;
 use App\Models\CustomerNotification;
 use App\Models\SystemSetting;
 use App\Models\TransactionCorrection;
+use App\Models\ReportNotification;
 use App\Models\User;
+use App\Services\TransactionActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -36,10 +38,22 @@ class SupervisorController extends Controller
             $minBalance = (int) (SystemSetting::where('key', 'min_balance')->value('value') ?: 10000);
 
             if ($transaction->type === 'withdrawal' && ($account->balance - $transaction->amount) < $minBalance) {
+                $alasanTolak = 'Saldo tidak mencukupi saat proses validasi (sisa saldo wajib minimal Rp ' . number_format($minBalance, 0, ',', '.') . ').';
+
                 $transaction->update([
                     'status' => 'rejected', 'approved_by' => auth()->id(), 'approved_at' => now(),
-                    'rejected_reason' => 'Saldo tidak mencukupi saat proses validasi (sisa saldo wajib minimal Rp ' . number_format($minBalance, 0, ',', '.') . ').'
+                    'rejected_reason' => $alasanTolak
                 ]);
+
+                // Jurnal Audit: transaksi gagal karena saldo tidak mencukupi.
+                TransactionActivityLogger::gagal($transaction->user_id, [
+                    'type' => $transaction->type,
+                    'amount' => $transaction->amount,
+                    'account_number' => $account->account_number,
+                    'reference_number' => $transaction->reference_number,
+                    'nasabah' => $account->user?->name,
+                ], $alasanTolak);
+
                 CustomerNotification::create([
                     'user_id' => $account->user_id,
                     'title' => 'Transaksi ditolak',
@@ -76,6 +90,15 @@ class SupervisorController extends Controller
                 'transaction_id' => $transaction->id,
             ]);
 
+            // Jurnal Audit: transaksi berhasil disetujui Supervisor.
+            TransactionActivityLogger::berhasil($transaction->user_id, [
+                'type' => $transaction->type,
+                'amount' => $transaction->amount,
+                'account_number' => $account->account_number,
+                'reference_number' => $transaction->reference_number,
+                'nasabah' => $account->user?->name,
+            ], 'Disetujui Supervisor (alur validasi).');
+
             return back()->with('success', 'Transaksi '.$transaction->reference_number.' berhasil disetujui.');
         });
     }
@@ -88,6 +111,16 @@ class SupervisorController extends Controller
         $transaction->update([
             'status' => 'rejected','approved_by' => auth()->id(),'approved_at' => now(),'rejected_reason' => $request->reason,
         ]);
+
+        // Jurnal Audit: transaksi gagal karena ditolak Supervisor.
+        TransactionActivityLogger::gagal($transaction->user_id, [
+            'type' => $transaction->type,
+            'amount' => $transaction->amount,
+            'account_number' => $transaction->account?->account_number,
+            'reference_number' => $transaction->reference_number,
+            'nasabah' => $transaction->account?->user?->name,
+        ], 'Ditolak Supervisor: ' . $request->reason);
+
         CustomerNotification::create([
             'user_id' => $transaction->account->user_id,
             'title' => 'Transaksi ditolak',
@@ -157,9 +190,28 @@ class SupervisorController extends Controller
             $isKurang = $correction->type === 'withdrawal_correction';
 
             if ($isKurang && ($account->balance - $correction->corrected_amount) < $minBalance) {
+                $rejectionReason = 'Saldo tidak mencukupi saat validasi; saldo minimum Rp ' . number_format($minBalance, 0, ',', '.') . '.';
                 $correction->update([
                     'status' => 'rejected',
                     'supervisor_id' => auth()->id(),
+                    'rejected_reason' => $rejectionReason,
+                ]);
+
+                // Jurnal Audit: koreksi transaksi gagal divalidasi.
+                TransactionActivityLogger::gagal($correction->teller_id, [
+                    'type' => $wrongTx->type,
+                    'amount' => $correction->corrected_amount,
+                    'account_number' => $account->account_number,
+                    'reference_number' => $wrongTx->reference_number ?: $wrongTx->transaction_code,
+                    'nasabah' => $account->user?->name,
+                ], 'Koreksi ' . $correction->correction_code . ' ditolak: ' . $rejectionReason);
+
+                ReportNotification::create([
+                    'user_id' => $correction->teller_id,
+                    'daily_report_id' => null,
+                    'title' => 'Pengajuan koreksi ditolak',
+                    'message' => 'Koreksi transaksi ' . $wrongTx->transaction_code . ' ditolak. Alasan: ' . $rejectionReason,
+                    'type' => 'correction_rejected',
                 ]);
                 return back()->withErrors(['correction' => 'Koreksi ditolak otomatis: saldo sudah tidak mencukupi saat divalidasi.']);
             }
@@ -199,13 +251,30 @@ class SupervisorController extends Controller
                 'supervisor_id' => auth()->id(),
             ]);
 
+            ReportNotification::create([
+                'user_id' => $correction->teller_id,
+                'daily_report_id' => null,
+                'title' => 'Pengajuan koreksi disetujui',
+                'message' => 'Koreksi transaksi ' . $wrongTx->transaction_code . ' telah disetujui dan saldo nasabah sudah disesuaikan sebesar Rp ' . number_format(floatval($correction->corrected_amount), 0, ',', '.') . '.',
+                'type' => 'correction_approved',
+            ]);
+
             CustomerNotification::create([
                 'user_id' => $account->user_id,
                 'title' => 'Koreksi saldo disetujui',
-                'message' => 'Saldo Anda disesuaikan sebesar Rp ' . number_format($correction->corrected_amount, 0, ',', '.') . ' (koreksi ' . $correction->correction_code . ').',
+                'message' => 'Saldo Anda disesuaikan sebesar Rp ' . number_format(floatval($correction->corrected_amount), 0, ',', '.') . ' (koreksi ' . $correction->correction_code . ').',
                 'type' => 'transaction',
                 'transaction_id' => $koreksiTx->id,
             ]);
+
+            // Jurnal Audit: koreksi transaksi berhasil diposting.
+            TransactionActivityLogger::berhasil($correction->teller_id, [
+                'type' => $type,
+                'amount' => $correction->corrected_amount,
+                'account_number' => $account->account_number,
+                'reference_number' => $koreksiTx->reference_number ?: $koreksiTx->transaction_code,
+                'nasabah' => $account->user?->name,
+            ], 'Koreksi ' . $correction->correction_code . ' disetujui Supervisor.');
 
             return back()->with('success', 'Koreksi disetujui. Saldo nasabah telah disesuaikan.');
         });
@@ -223,8 +292,26 @@ class SupervisorController extends Controller
         $correction->update([
             'status' => 'rejected',
             'supervisor_id' => auth()->id(),
-            'reason' => $correction->reason . ' | Ditolak Supervisor: ' . $request->reason,
+            'rejected_reason' => $request->reason,
         ]);
+
+        ReportNotification::create([
+            'user_id' => $correction->teller_id,
+            'daily_report_id' => null,
+            'title' => 'Pengajuan koreksi ditolak',
+            'message' => 'Koreksi transaksi ' . $correction->transaction->transaction_code . ' ditolak. Alasan: ' . $request->reason,
+            'type' => 'correction_rejected',
+        ]);
+
+        // Jurnal Audit: pengajuan koreksi ditolak Supervisor.
+        TransactionActivityLogger::gagal($correction->teller_id, [
+            'type' => $correction->transaction?->type,
+            'amount' => $correction->corrected_amount,
+            'account_number' => $correction->transaction?->account?->account_number,
+            'reference_number' => $correction->transaction?->reference_number
+                ?: $correction->transaction?->transaction_code,
+            'nasabah' => $correction->transaction?->account?->user?->name,
+        ], 'Koreksi ' . $correction->correction_code . ' ditolak: ' . $request->reason);
 
         return back()->with('success', 'Pengajuan koreksi ditolak.');
     }

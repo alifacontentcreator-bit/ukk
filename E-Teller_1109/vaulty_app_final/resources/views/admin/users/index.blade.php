@@ -75,7 +75,7 @@
         <div class="section-head">
             <div>
                 <div class="section-title">Daftar Pengguna</div>
-                <div class="section-sub">{{ $users->count() }} akun &middot; admin, supervisor, teller, dan nasabah. Akun nasabah tidak dapat dihapus permanen &mdash; nonaktifkan saja agar riwayat transaksinya tetap tersimpan.</div>
+                <div class="section-sub">{{ $users->count() }} akun &middot; admin, supervisor, teller, dan nasabah. Setiap baris memiliki tombol ubah, blokir/nonaktifkan, dan hapus. Akun yang sudah memiliki riwayat transaksi atau laporan tidak dapat dihapus permanen &mdash; blokir/nonaktifkan saja agar jejak audit tetap tersimpan.</div>
             </div>
             <span class="badge badge-outline">{{ $users->count() }} akun</span>
         </div>
@@ -143,13 +143,17 @@
                                                 </button>
                                             </form>
                                         @endif
-                                        @if($user->role !== 'customer')
-                                            <form method="POST" action="{{ route('admin.users.destroy', $user) }}" onsubmit="return confirm('Hapus permanen akun {{ $user->name }}? Tindakan ini tidak bisa dibatalkan. Akun yang memiliki riwayat transaksi atau laporan tidak dapat dihapus.')">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button class="icon-btn is-danger" type="submit" title="Hapus {{ $user->name }}" aria-label="Hapus {{ $user->name }}"><x-icon name="trash" /></button>
-                                            </form>
-                                        @endif
+                                        @php($konfirmasiHapus = $user->role === 'customer'
+                                            ? 'Hapus akun nasabah ' . $user->name . '? Bila akun ini belum memiliki riwayat transaksi, akun beserta rekeningnya dihapus permanen. Bila sudah ada riwayat, sistem akan menolak agar jejak audit tetap tersimpan (gunakan tombol nonaktifkan).'
+                                            : 'Hapus permanen akun ' . $user->name . '? Tindakan ini tidak bisa dibatalkan. Akun yang memiliki riwayat transaksi atau laporan tidak dapat dihapus.')
+                                        {{-- Tombol hapus tampil untuk SEMUA baris (ketentuan kolom Aksi:
+                                             ubah, blokir, hapus). Server tetap menolak penghapusan akun
+                                             yang sudah memiliki riwayat transaksi/laporan. --}}
+                                        <form method="POST" action="{{ route('admin.users.destroy', $user) }}" onsubmit="return confirm('{{ $konfirmasiHapus }}')">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button class="icon-btn is-danger" type="submit" title="Hapus {{ $user->name }}" aria-label="Hapus {{ $user->name }}"><x-icon name="trash" /></button>
+                                        </form>
                                     @else
                                         <span class="muted" style="font-size:11px">akun Anda</span>
                                     @endif

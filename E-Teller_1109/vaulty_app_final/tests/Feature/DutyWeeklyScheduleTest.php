@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\DutyShift;
+use App\Models\DutyAttendance;
 use App\Models\DutyWeeklySchedule;
 use App\Models\User;
 use Carbon\Carbon;
@@ -172,6 +173,91 @@ class DutyWeeklyScheduleTest extends TestCase
         ]);
     }
 
+    public function test_absen_masuk_di_luar_jam_shift_ditolak(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-09 06:44:00'));
+
+        $shift = $this->shift();
+        DutyWeeklySchedule::create([
+            'day_of_week' => 1,
+            'duty_shift_id' => $shift->id,
+            'user_id' => $this->teller->id,
+            'created_by' => $this->supervisor->id,
+        ]);
+
+        $this->actingAs($this->teller)
+            ->post(route('teller.absensi.masuk'), ['duty_shift_id' => $shift->id])
+            ->assertSessionHasErrors('absensi');
+
+        $this->assertDatabaseCount('duty_attendances', 0);
+    }
+
+    public function test_absen_pulang_di_luar_jam_shift_ditolak(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-09 10:00:00'));
+
+        $shift = $this->shift();
+        DutyWeeklySchedule::create([
+            'day_of_week' => 1,
+            'duty_shift_id' => $shift->id,
+            'user_id' => $this->teller->id,
+            'created_by' => $this->supervisor->id,
+        ]);
+        $attendance = DutyAttendance::create([
+            'user_id' => $this->teller->id,
+            'duty_shift_id' => $shift->id,
+            'duty_date' => today(),
+            'check_in_at' => Carbon::parse('2026-11-09 08:00:00'),
+            'status' => 'hadir',
+        ]);
+
+        $this->actingAs($this->teller)
+            ->post(route('teller.absensi.pulang'), ['duty_shift_id' => $shift->id])
+            ->assertSessionHasErrors('absensi');
+
+        $this->assertDatabaseHas('duty_attendances', [
+            'id' => $attendance->id,
+            'check_out_at' => null,
+        ]);
+    }
+
+    public function test_riwayat_teller_disembunyikan_tanpa_menghapus_data_kehadiran(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-09 08:00:00'));
+
+        $shift = $this->shift();
+        foreach ([today(), today()->subDay()] as $tanggal) {
+            DutyAttendance::create([
+                'user_id' => $this->teller->id,
+                'duty_shift_id' => $shift->id,
+                'duty_date' => $tanggal,
+                'check_in_at' => $tanggal->copy()->setTime(8, 0),
+                'status' => 'hadir',
+            ]);
+        }
+
+        $this->actingAs($this->teller)
+            ->get(route('teller.absensi', [
+                'from' => today()->subDay()->toDateString(),
+                'to' => today()->subDay()->toDateString(),
+                'status' => 'sakit',
+            ]))
+            ->assertOk()
+            ->assertSee('Jadwal 7 Hari ke Depan')
+            ->assertDontSee('Riwayat Kehadiran');
+
+        $this->assertDatabaseCount('duty_attendances', 2);
+
+        $this->actingAs($this->supervisor)
+            ->get(route('supervisor.absensi', [
+                'from' => today()->subDay()->toDateString(),
+                'to' => today()->toDateString(),
+            ]))
+            ->assertOk()
+            ->assertSee(today()->format('d/m/Y'))
+            ->assertSee(today()->subDay()->format('d/m/Y'));
+    }
+
     public function test_hari_sabtu_dan_minggu_tidak_bisa_dijadwalkan(): void
     {
         $shift = $this->shift();
@@ -210,7 +296,11 @@ class DutyWeeklyScheduleTest extends TestCase
             ->get(route('teller.absensi'))
             ->assertOk()
             ->assertSee('Tidak ada jadwal')
-            ->assertDontSee($shift->label());
+            ->assertSee('btn-disabled', false)
+            ->assertSee('disabled', false)
+            // Hari Sabtu tidak ada shift untuk absen (shift hanya muncul sebagai
+            // pilihan pada form "Ajukan Tukar Shift", bukan sebagai jadwal hari ini).
+            ->assertSee('Tidak ada jadwal jaga hari ini untuk Anda');
     }
 
     public function test_supervisor_menghapus_petugas_dari_jadwal(): void
@@ -247,7 +337,7 @@ class DutyWeeklyScheduleTest extends TestCase
         $this->actingAs($this->supervisor)
             ->get(route('supervisor.absensi'))
             ->assertOk()
-            ->assertSee('Terjadwal Hari Ini, Belum Absen')
+            ->assertSee('Kehadiran Hari Ini')
             ->assertSee('Budi Teller');
     }
 }

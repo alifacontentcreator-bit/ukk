@@ -16,7 +16,7 @@
         <div class="section-head">
             <div>
                 <div class="section-title">Formulir Ubah Pengguna</div>
-                <div class="section-sub">Perbarui informasi, hak akses, atau sandi pengguna.</div>
+                <div class="section-sub">Perbarui identitas, hak akses, dan status pengguna.</div>
             </div>
             <span class="badge {{ $user->status === 'active' && !($user->account?->pin_blocked) ? 'badge-ok' : 'badge-danger' }}">{{ $user->status !== 'active' ? 'Diblokir' : ($user->account?->pin_blocked ? 'Blokir (PIN)' : 'Aktif') }}</span>
         </div>
@@ -36,6 +36,9 @@
         <form method="POST" action="{{ route('admin.users.update', $user) }}" enctype="multipart/form-data">
             @csrf
             @method('PUT')
+            {{-- Ditandai oleh JS saat admin memilih foto; dipakai controller untuk
+                 memastikan berkas benar-benar sampai ke server. --}}
+            <input type="hidden" name="photo_expected" id="photoExpected" value="">
             <div class="card-body stack">
                 <div>
                     <span class="section-label">Identitas pengguna</span>
@@ -48,33 +51,22 @@
                         <div class="field">
                             <label for="inputPhoto">Foto profil</label>
                             <div class="person" style="gap:10px">
-                                @if($user->photo)
-                                    <img class="et-avatar et-avatar-photo" style="width:40px;height:40px" src="{{ asset('storage/' . $user->photo) }}" alt="Foto {{ $user->name }}">
-                                @else
-                                    <span class="et-avatar" style="width:40px;height:40px;font-size:14px">{{ strtoupper(substr($user->name, 0, 1)) }}</span>
-                                @endif
+                                <img id="photoPreview" class="et-avatar et-avatar-photo"
+                                     style="width:40px;height:40px;{{ $user->photo ? '' : 'display:none' }}"
+                                     src="{{ $user->photo ? asset('storage/' . $user->photo) : '' }}"
+                                     alt="Foto {{ $user->name }}">
+                                <span id="photoInitial" class="et-avatar"
+                                      style="width:40px;height:40px;font-size:14px;{{ $user->photo ? 'display:none' : '' }}">{{ strtoupper(substr($user->name, 0, 1)) }}</span>
                                 <input id="inputPhoto" type="file" name="photo" accept="image/*" style="flex:1">
                             </div>
-                            <p class="helper">Format gambar umum, maksimal 5 MB. Kosongkan jika tidak ingin mengganti foto.</p>
+                            <p class="helper">Format gambar umum (JPG, PNG, WEBP), maksimal 5 MB. Kosongkan jika tidak ingin mengganti foto.</p>
+                            <p class="form-error" id="photoClientError" hidden></p>
                             @error('photo')<p class="form-error">{{ $message }}</p>@enderror
                         </div>
-                        <div class="form-grid">
-                            <div class="field">
-                                <label for="inputUsername">Nama pengguna</label>
-                                <input id="inputUsername" type="text" name="username" value="{{ old('username', $user->username) }}" required>
-                                @error('username')<p class="form-error">{{ $message }}</p>@enderror
-                            </div>
-                            <div class="field">
-                                <label for="inputPassword">Sandi baru (opsional)</label>
-                                <div class="field-icon">
-                                    <input id="inputPassword" type="password" name="password" placeholder="Kosongkan jika tidak diubah" autocomplete="new-password">
-                                    <button class="toggle-pass" type="button" data-toggle-pass="inputPassword" aria-label="Tampilkan sandi" aria-pressed="false">
-                                        <x-icon name="eye" class="ico-show" />
-                                        <x-icon name="eye-off" class="ico-off" />
-                                    </button>
-                                </div>
-                                @error('password')<p class="form-error">{{ $message }}</p>@enderror
-                            </div>
+                        <div class="field">
+                            <label for="inputUsername">Nama pengguna</label>
+                            <input id="inputUsername" type="text" name="username" value="{{ old('username', $user->username) }}" required>
+                            @error('username')<p class="form-error">{{ $message }}</p>@enderror
                         </div>
                     </div>
                 </div>
@@ -212,5 +204,65 @@
         }
 
         document.addEventListener('DOMContentLoaded', toggleCustomerFields);
+
+        /*
+         * Pratinjau foto profil.
+         * Tanpa pratinjau, avatar di formulir tetap menampilkan foto lama
+         * sehingga perubahan tidak terlihat sampai halaman disimpan.
+         * Di sini berkas juga diperiksa lebih awal (jenis + ukuran) supaya
+         * admin langsung tahu bila fotonya ditolak, bukan setelah submit.
+         */
+        function setupPhotoPreview() {
+            const input = document.getElementById('inputPhoto');
+            const preview = document.getElementById('photoPreview');
+            const initial = document.getElementById('photoInitial');
+            const errorBox = document.getElementById('photoClientError');
+            const expected = document.getElementById('photoExpected');
+            if (!input || !preview) return;
+
+            const MAX_BYTES = 5 * 1024 * 1024;
+
+            const showError = (message) => {
+                if (!errorBox) return;
+                errorBox.textContent = message;
+                errorBox.hidden = message === '';
+            };
+
+            const markExpected = (chosen) => {
+                if (expected) expected.value = chosen ? '1' : '';
+            };
+
+            input.addEventListener('change', () => {
+                const file = input.files && input.files[0];
+
+                if (!file) {
+                    showError('');
+                    markExpected(false);
+                    return;
+                }
+
+                if (!file.type || !file.type.startsWith('image/')) {
+                    showError('Berkas yang dipilih bukan gambar. Gunakan JPG, PNG, atau WEBP.');
+                    input.value = '';
+                    markExpected(false);
+                    return;
+                }
+
+                if (file.size > MAX_BYTES) {
+                    showError('Ukuran foto ' + (file.size / 1024 / 1024).toFixed(1) + ' MB melebihi batas 5 MB. Pilih foto yang lebih kecil.');
+                    input.value = '';
+                    markExpected(false);
+                    return;
+                }
+
+                showError('');
+                markExpected(true);
+                preview.src = URL.createObjectURL(file);
+                preview.style.display = '';
+                if (initial) initial.style.display = 'none';
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', setupPhotoPreview);
     </script>
 @endpush

@@ -58,7 +58,7 @@
                 @if(session('error'))
                     <div class="alert alert-danger"><x-icon name="alert" /><span>{{ session('error') }}</span></div>
                 @endif
-                @if($errors->any())
+                @if(isset($errors) && $errors->any())
                     <div class="alert alert-danger">
                         <x-icon name="alert" />
                         <ul>@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>

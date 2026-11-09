@@ -50,12 +50,14 @@ class AuthController extends Controller
             . hash('sha256', Str::lower($data['username']) . '|' . $request->ip());
 
         if (RateLimiter::tooManyAttempts($rateLimitKey, 1)) {
+            // Sisa detik dihitung dari RateLimiter (bukan angka tetap 15) agar
+            // pesan yang tampil di aplikasi sama dengan hitungan tombol.
+            $retryAfter = max(1, (int) RateLimiter::availableIn($rateLimitKey));
+
             return response()->json([
-                'message' => 'Tunggu '
-                    . self::ACTIVATION_CODE_COOLDOWN_SECONDS
-                    . ' detik sebelum meminta kode lagi.',
+                'message' => 'Tunggu ' . $retryAfter . ' detik sebelum meminta kode lagi.',
                 'code' => 'ACTIVATION_CODE_RATE_LIMITED',
-                'retry_after' => RateLimiter::availableIn($rateLimitKey),
+                'retry_after' => $retryAfter,
             ], 429);
         }
 
@@ -157,12 +159,17 @@ class AuthController extends Controller
             Log::error('Customer activation email delivery failed.', [
                 'user_id' => $activation['user_id'],
                 'exception' => $exception::class,
+                'error' => $exception->getMessage(),
             ]);
 
-            return response()->json([
-                'message' => 'Email kode belum dapat dikirim. Coba lagi nanti atau hubungi Administrator.',
-                'code' => 'ACTIVATION_EMAIL_UNAVAILABLE',
-            ], 503);
+            return response()->json(
+                $this->mailFailurePayload(
+                    'Email kode belum dapat dikirim. Coba lagi nanti atau hubungi Administrator.',
+                    'ACTIVATION_EMAIL_UNAVAILABLE',
+                    $exception
+                ),
+                503
+            );
         }
 
         $maskedEmail = $this->maskEmail($activation['email']);
@@ -199,12 +206,12 @@ class AuthController extends Controller
             . hash('sha256', Str::lower($data['username']) . '|' . $request->ip());
 
         if (RateLimiter::tooManyAttempts($rateLimitKey, 1)) {
+            $retryAfter = max(1, (int) RateLimiter::availableIn($rateLimitKey));
+
             return response()->json([
-                'message' => 'Tunggu '
-                    . self::PASSWORD_RESET_COOLDOWN_SECONDS
-                    . ' detik sebelum meminta kode lagi.',
+                'message' => 'Tunggu ' . $retryAfter . ' detik sebelum meminta kode OTP lagi.',
                 'code' => 'PASSWORD_RESET_CODE_RATE_LIMITED',
-                'retry_after' => RateLimiter::availableIn($rateLimitKey),
+                'retry_after' => $retryAfter,
             ], 429);
         }
 
@@ -296,12 +303,17 @@ class AuthController extends Controller
             Log::error('Customer password reset email delivery failed.', [
                 'user_id' => $reset['user_id'],
                 'exception' => $exception::class,
+                'error' => $exception->getMessage(),
             ]);
 
-            return response()->json([
-                'message' => 'Email kode OTP belum dapat dikirim. Coba lagi nanti atau hubungi Administrator.',
-                'code' => 'PASSWORD_RESET_EMAIL_UNAVAILABLE',
-            ], 503);
+            return response()->json(
+                $this->mailFailurePayload(
+                    'Email kode OTP belum dapat dikirim. Coba lagi nanti atau hubungi Administrator.',
+                    'PASSWORD_RESET_EMAIL_UNAVAILABLE',
+                    $exception
+                ),
+                503
+            );
         }
 
         $maskedEmail = $this->maskEmail($reset['email']);
@@ -425,6 +437,29 @@ class AuthController extends Controller
                 'code' => 'PASSWORD_RESET_SUCCESS',
             ], 200);
         });
+    }
+
+    /**
+     * Bentuk respons ketika email kode tidak dapat dikirim.
+     *
+     * Pesan utama tetap ramah untuk nasabah. Bila `APP_DEBUG=true` (mis. saat
+     * menguji di hosting), alasan teknisnya ikut dikirim sebagai `detail`
+     * supaya Administrator langsung tahu penyebabnya tanpa membuka log.
+     *
+     * @return array<string, mixed>
+     */
+    private function mailFailurePayload(string $message, string $code, Throwable $exception): array
+    {
+        $payload = [
+            'message' => $message,
+            'code' => $code,
+        ];
+
+        if (config('app.debug')) {
+            $payload['detail'] = $exception->getMessage();
+        }
+
+        return $payload;
     }
 
     /**

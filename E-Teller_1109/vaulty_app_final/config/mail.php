@@ -115,4 +115,20 @@ return [
         'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Alamat pengirim cadangan (transport mail() hosting)
+    |--------------------------------------------------------------------------
+    |
+    | Dipakai hanya ketika pengiriman lewat SMTP gagal (mis. port 465/587
+    | diblokir hosting) atau SMTP belum diisi. Isi dengan alamat pada domain
+    | aplikasi, mis. no-reply@vaultybankmini.web.id, supaya cocok dengan
+    | SPF/DKIM domain sehingga email tidak dianggap spam. Bila dibiarkan
+    | kosong, aplikasi memakai no-reply@<domain APP_URL>.
+    |
+    */
+
+    'fallback_from_address' => env('MAIL_FALLBACK_FROM_ADDRESS'),
+
 ];
+

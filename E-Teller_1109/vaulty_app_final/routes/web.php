@@ -16,9 +16,14 @@ use App\Http\Controllers\TransactionCorrectionController;
 use App\Http\Controllers\AccountingJournalController;
 use App\Http\Controllers\AdminPasswordRecoveryController;
 use App\Http\Controllers\AdminPinResetController;
+use App\Http\Controllers\AdminAuditLogController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\SupervisorDutyController;
+use App\Http\Controllers\SupervisorAuditJournalController;
+use App\Http\Controllers\SupervisorShiftSwapController;
+use App\Http\Controllers\TellerShiftSwapController;
+use App\Http\Controllers\PetugasNotifikasiController;
 
 use App\Models\User;
 use App\Models\Transaction;
@@ -229,9 +234,15 @@ Route::middleware('auth')->group(function () {
             Route::put('/konfigurasi', [SystemSettingsController::class, 'update'])
                 ->name('konfigurasi.update');
 
-            Route::get('/audit-log', function () {
-                return view('admin.audit-log');
-            })->name('audit-log');
+            Route::get('/audit-log', [AdminAuditLogController::class, 'index'])
+                ->name('audit-log');
+
+            // Notifikasi (ikon lonceng) untuk Admin: informasi & pengajuan dari petugas.
+            Route::get('/notifikasi', [PetugasNotifikasiController::class, 'index'])
+                ->name('notifikasi');
+
+            Route::post('/notifikasi/baca', [PetugasNotifikasiController::class, 'bacaSemua'])
+                ->name('notifikasi.baca');
 
             Route::get('/pemulihan-sandi', [AdminPasswordRecoveryController::class, 'index'])
                 ->name('pemulihan-sandi');
@@ -448,6 +459,14 @@ Route::middleware('auth')->group(function () {
             Route::post('/petugas/jadwal', [SupervisorDutyController::class, 'scheduleStore'])
                 ->name('jadwal.store');
 
+            // Ubah jadwal (shift / petugas) untuk hari tertentu atau semua hari.
+            Route::post('/petugas/jadwal/ubah', [SupervisorDutyController::class, 'scheduleBulkUpdate'])
+                ->name('jadwal.bulk-update');
+
+            // Hapus jadwal untuk hari tertentu atau semua hari.
+            Route::delete('/petugas/jadwal', [SupervisorDutyController::class, 'scheduleBulkDestroy'])
+                ->name('jadwal.bulk-destroy');
+
             Route::delete('/petugas/jadwal/{id}', [SupervisorDutyController::class, 'scheduleDestroy'])
                 ->name('jadwal.destroy');
 
@@ -462,6 +481,28 @@ Route::middleware('auth')->group(function () {
 
             Route::get('/petugas/data', [SupervisorDutyController::class, 'officerIndex'])
                 ->name('petugas');
+
+
+            // ===================== TUKAR SHIFT (PERSETUJUAN) =====================
+            // Daftar pengajuan tukar shift dari Teller.
+            Route::get('/petugas/tukar-shift', [SupervisorShiftSwapController::class, 'index'])
+                ->name('tukar-shift');
+
+            // Klik "Setujui" → hak jaga pindah dari Teller A ke Teller B.
+            Route::post('/petugas/tukar-shift/{swap}/setujui', [SupervisorShiftSwapController::class, 'setujui'])
+                ->name('tukar-shift.setujui');
+
+            // Klik "Tolak" → pengajuan ditolak dengan alasan.
+            Route::post('/petugas/tukar-shift/{swap}/tolak', [SupervisorShiftSwapController::class, 'tolak'])
+                ->name('tukar-shift.tolak');
+
+
+            // ===================== NOTIFIKASI (IKON LONCENG) =====================
+            Route::get('/notifikasi', [PetugasNotifikasiController::class, 'index'])
+                ->name('notifikasi');
+
+            Route::post('/notifikasi/baca', [PetugasNotifikasiController::class, 'bacaSemua'])
+                ->name('notifikasi.baca');
 
 
             // Laporan Harian Teller
@@ -487,93 +528,9 @@ Route::middleware('auth')->group(function () {
                 ->name('laporan.transfer');
 
 
-            // Jurnal Transaksi Supervisor
-            Route::get('/jurnal', function (Request $request) {
-
-                $tellers = User::where('role', 'teller')
-                    ->orderBy('name')
-                    ->get();
-
-                $filters = $request->validate([
-                    'from' => ['nullable', 'date'],
-                    'to' => ['nullable', 'date'],
-                    'teller_id' => ['nullable', 'integer', 'exists:users,id'],
-                    'type' => ['nullable', 'in:deposit,withdrawal'],
-                    'status' => ['nullable', 'in:pending,approved,rejected,success,corrected,void'],
-                    'q' => ['nullable', 'string', 'max:80'],
-                ]);
-
-                $query = Transaction::with(['account.user', 'teller']);
-
-                if (!empty($filters['from'])) {
-                    $query->whereDate('created_at', '>=', $filters['from']);
-                }
-
-                if (!empty($filters['to'])) {
-                    $query->whereDate('created_at', '<=', $filters['to']);
-                }
-
-                if (!empty($filters['teller_id'])) {
-                    $query->where('user_id', $filters['teller_id']);
-                }
-
-                if (!empty($filters['type'])) {
-                    $query->where('type', $filters['type']);
-                }
-
-                if (!empty($filters['status'])) {
-                    $query->where('status', $filters['status']);
-                }
-
-                if (!empty($filters['q'])) {
-
-                    $q = trim($filters['q']);
-
-                    $query->where(function ($w) use ($q) {
-
-                        $w->where('reference_number', 'like', "%{$q}%")
-                            ->orWhere('transaction_code', 'like', "%{$q}%")
-                            ->orWhereHas('account', function ($a) use ($q) {
-
-                                $a->where('account_number', 'like', "%{$q}%")
-                                    ->orWhereHas('user', fn ($u) => $u->where('name', 'like', "%{$q}%"));
-
-                            });
-                    });
-                }
-
-                $stats = [
-                    'total' => (clone $query)->count(),
-
-                    'approved' => (clone $query)
-                        ->whereIn('status', ['approved', 'success'])
-                        ->count(),
-
-                    'pending' => (clone $query)
-                        ->where('status', 'pending')
-                        ->count(),
-
-                    'rejected' => (clone $query)
-                        ->where('status', 'rejected')
-                        ->count(),
-                ];
-
-                // Arsip transaksi paling awal, dipakai sebagai penanda bahwa
-                // riwayat dari dulu sampai sekarang tetap tersimpan.
-                $awalTransaksi = Transaction::min('created_at');
-
-                $transaksi = $query->latest()
-                    ->paginate(20)
-                    ->withQueryString();
-
-                return view('supervisor.jurnal', compact(
-                    'stats',
-                    'tellers',
-                    'transaksi',
-                    'awalTransaksi'
-                ));
-
-            })->name('jurnal');
+            // Jurnal Audit Supervisor (halaman hanya-baca: transaksi berhasil & gagal).
+            Route::get('/jurnal', [SupervisorAuditJournalController::class, 'index'])
+                ->name('jurnal');
         });
 
 
@@ -677,7 +634,9 @@ Route::middleware('auth')->group(function () {
                 ->name('koreksi');
 
             Route::post('/koreksi', [TransactionCorrectionController::class, 'store'])
-                ->name('koreksi.store');
+                ->name('koreksi.store')
+                // Teller hanya boleh mengajukan koreksi pada hari dia bertugas.
+                ->middleware('teller.bertugas');
 
             Route::get('/koreksi/{id}', [TransactionCorrectionController::class, 'show'])
                 ->name('koreksi.show');
@@ -694,18 +653,31 @@ Route::middleware('auth')->group(function () {
                 ->name('absensi.pulang');
 
 
+            // ===================== TUKAR SHIFT =====================
+            // Teller mengajukan tukar shift (form ada di halaman Absensi Jaga).
+            Route::post('/tukar-shift', [TellerShiftSwapController::class, 'store'])
+                ->name('tukar-shift.store');
+
+            // Teller membatalkan pengajuan yang masih menunggu.
+            Route::delete('/tukar-shift/{swap}', [TellerShiftSwapController::class, 'batalkan'])
+                ->name('tukar-shift.batalkan');
+
+
             // Konfirmasi Penerimaan Modal dari Supervisor
             Route::post('/kas/konfirmasi-modal/{transfer}', [ReportController::class, 'confirmOpeningTransfer'])
-                ->name('kas.konfirmasi-modal');
+                ->name('kas.konfirmasi-modal')
+                ->middleware('teller.bertugas');
 
             // Pengajuan Tambah Modal ke Supervisor (nominal ditentukan Supervisor)
             Route::post('/kas/ajukan-modal', [ReportController::class, 'requestOpeningModal'])
-                ->name('kas.ajukan-modal');
+                ->name('kas.ajukan-modal')
+                ->middleware('teller.bertugas');
 
 
             // Pengembalian Kas dari Laci Teller ke Brankas
             Route::post('/kas/serahkan-kembali', [ReportController::class, 'createClosingTransfer'])
-                ->name('kas.serahkan-kembali');
+                ->name('kas.serahkan-kembali')
+                ->middleware('teller.bertugas');
 
 
             // Laporan Harian Teller
@@ -713,16 +685,20 @@ Route::middleware('auth')->group(function () {
                 ->name('laporan');
 
             Route::post('/laporan/draft', [ReportController::class, 'createTeller'])
-                ->name('laporan-harian.draft');
+                ->name('laporan-harian.draft')
+                ->middleware('teller.bertugas');
 
             Route::post('/laporan/kirim', [ReportController::class, 'sendTeller'])
-                ->name('laporan-harian.kirim');
+                ->name('laporan-harian.kirim')
+                ->middleware('teller.bertugas');
 
             Route::post('/laporan/{report}/revisi', [ReportController::class, 'reviseTeller'])
-                ->name('laporan-harian.revisi');
+                ->name('laporan-harian.revisi')
+                ->middleware('teller.bertugas');
 
             Route::post('/laporan', [ReportController::class, 'storeTeller'])
-                ->name('laporan-harian.store');
+                ->name('laporan-harian.store')
+                ->middleware('teller.bertugas');
 
 
             // Notifikasi keputusan Supervisor atas laporan harian

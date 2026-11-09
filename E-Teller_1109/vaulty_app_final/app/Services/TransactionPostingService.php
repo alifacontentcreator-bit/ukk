@@ -202,6 +202,19 @@ class TransactionPostingService
             'transaction_id' => $transaction->id,
         ]);
 
+        /*
+         * Jejak audit: transaksi berhasil dicatat untuk Jurnal Audit Supervisor.
+         * Diletakkan di choke point posting supaya semua jalur (konfirmasi PIN
+         * nasabah maupun koreksi) tercatat tanpa terkecuali.
+         */
+        TransactionActivityLogger::berhasil($teller->id, [
+            'type' => $type,
+            'amount' => $amount,
+            'account_number' => $account->account_number,
+            'reference_number' => $transaction->reference_number,
+            'nasabah' => $account->user?->name,
+        ], $isDeposit ? 'Setoran berhasil diposting.' : 'Penarikan berhasil diposting.');
+
         return $transaction;
     }
 }

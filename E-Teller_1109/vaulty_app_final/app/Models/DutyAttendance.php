@@ -13,21 +13,27 @@ class DutyAttendance extends Model
 
     protected $fillable = [
         'user_id', 'duty_shift_id', 'duty_date', 'check_in_at', 'check_out_at',
-        'status', 'note', 'marked_by',
+        'status', 'previous_status', 'note', 'marked_by', 'updated_by',
     ];
 
     protected $casts = [
-        'duty_date' => 'date',
-        'check_in_at' => 'datetime',
+        'duty_date'    => 'date',
+        'check_in_at'  => 'datetime',
         'check_out_at' => 'datetime',
     ];
 
     public function user() { return $this->belongsTo(User::class); }
     public function shift() { return $this->belongsTo(DutyShift::class, 'duty_shift_id'); }
     public function marker() { return $this->belongsTo(User::class, 'marked_by'); }
+    public function updater() { return $this->belongsTo(User::class, 'updated_by'); }
 
     public function statusLabel(): string
     {
+        // Status ditetapkan Supervisor. Record lama/tanpa status diberi label netral.
+        if (!$this->status) {
+            return 'Belum ditandai';
+        }
+
         return self::STATUS[$this->status] ?? ucfirst($this->status);
     }
 
