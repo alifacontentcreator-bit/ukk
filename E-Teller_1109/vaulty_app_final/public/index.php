@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: File publik ini menjadi titik masuk atau aset yang digunakan browser untuk fitur index. */
+
 
 use Illuminate\Foundation\Application;
 use Illuminate\Http\Request;

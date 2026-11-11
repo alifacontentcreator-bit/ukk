@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Konfigurasi ini mengatur perilaku komponen auth pada aplikasi Laravel. */
+
 
 use App\Models\User;
 

@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman auth identity, termasuk data dan aksi yang disediakan aplikasi. --}}
 {{-- Papan merek halaman masuk: logo sekolah + nama lembaga + subjudul sistem.
      Dipakai dua kali di layouts/auth: di pojok kiri atas foto (layar lebar) dan di
      atas formulir (layar sempit, saat panel foto disembunyikan). --}}

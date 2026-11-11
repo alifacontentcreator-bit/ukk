@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Pengujian ini memeriksa perilaku aplikasi pada skenario teller withdrawal min balance test agar alur terkait tetap berjalan sesuai harapan. */
+
 
 namespace Tests\Feature;
 

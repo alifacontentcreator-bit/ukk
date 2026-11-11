@@ -1,11 +1,16 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman cetak slip, termasuk data dan aksi yang disediakan aplikasi. --}}
 @extends('layouts.teller')
 
 @section('title', 'Struk Transaksi')
 @section('page-title', 'Struk Transaksi')
-@section('page-subtitle', 'Pratinjau struk sebelum dicetak.')
+@section('page-subtitle', 'Pratinjau slip. Cetak slip hanya tersedia dalam format PDF.')
 
 @section('page-actions')
-    <button class="btn btn-primary btn-sm" type="button" onclick="window.print()"><x-icon name="printer" /> Cetak</button>
+    <a class="btn btn-primary btn-sm" href="{{ route('teller.transaksi.cetak-pdf', $transaction) }}" target="_blank" rel="noopener"><x-icon name="file" /> Unduh PDF</a>
+    <a class="btn btn-soft btn-sm"
+       href="{{ route('teller.mutasi', ['account_number' => $transaction->account->account_number, 'from' => ($transaction->approved_at ?? $transaction->created_at)->copy()->startOfMonth()->toDateString(), 'to' => today()->toDateString()]) }}">
+        <x-icon name="receipt" /> Cetak Mutasi
+    </a>
     <a class="btn btn-soft btn-sm" href="{{ route('teller.transaksi.create') }}"><x-icon name="arrow-left" /> Transaksi</a>
 @endsection
 

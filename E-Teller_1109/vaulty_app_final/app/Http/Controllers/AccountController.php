@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Mengelola rekening nasabah pada sisi admin, termasuk daftar rekening, pembuatan nomor rekening, perubahan saldo, reset PIN darurat, dan penayangan QR identifikasi nasabah. */
+
 
 namespace App\Http\Controllers;
 
@@ -13,12 +15,14 @@ use Illuminate\Validation\Rule;
 
 class AccountController extends Controller
 {
+    //Menampilkan daftar rekening
     public function index()
     {
         $accounts = Account::with('user')->latest()->get();
         return view('admin.rekening', compact('accounts'));
     }
 
+    // Menyiapkan formulir pembuatan rekening dengan daftar nasabah yang belum memiliki rekening.
     public function create()
     {
         // Mengambil ID user yang sudah memiliki rekening
@@ -33,16 +37,20 @@ class AccountController extends Controller
         return view('admin.rekening-create', compact('customers'));
     }
 
+    // Memvalidasi data nasabah, membuat nomor rekening dan token QR, lalu menyimpan rekening baru.
     public function store(Request $request)
     {
+        //Validasi data
         $data = $request->validate([
             'user_id' => ['required', 'exists:users,id', Rule::exists('users', 'id')->where(fn ($q) => $q->where('role', 'customer'))],
             'balance' => ['required', 'numeric', 'min:0'],
         ]);
+        //Mencegah rekening ganda
 
         if (Account::where('user_id', $data['user_id'])->exists()) {
             return back()->withErrors(['user_id' => 'Nasabah tersebut sudah memiliki rekening.'])->withInput();
         }
+        //Mengambil data nasabah
 
         $customer = User::findOrFail($data['user_id']);
 
@@ -61,6 +69,8 @@ class AccountController extends Controller
         $data['pin_is_default'] = true;
         $data['qr_token'] = Str::random(48);
 
+        //Menyimpan rekening
+
         Account::create($data);
 
         return redirect()->route('admin.rekening')->with(
@@ -69,11 +79,15 @@ class AccountController extends Controller
         );
     }
 
+    //Menampilkan form edit rekening
+
     public function edit(Account $account)
     {
         $account->load('user');
         return view('admin.rekening-edit', compact('account'));
     }
+
+    //Menyimpan perubahan rekening
 
     public function update(Request $request, Account $account)
     {
@@ -109,13 +123,17 @@ class AccountController extends Controller
         return back()->with('success', 'PIN sementara nasabah telah direset ke 123456 dan notifikasi telah dikirim.');
     }
 
+    //Menampilkan QR rekening
+
     public function qr(Account $account)
     {
+        // Token QR dipakai untuk mengenali rekening saat dipindai, bukan untuk membawa data saldo.
         if (!$account->qr_token) {
             $account->update(['qr_token' => Str::random(48)]);
         }
 
         $account->load('user');
+        // Halaman QR menampilkan tautan pemindaian yang merujuk ke token rekening ini.
         $scanUrl = route('customer.qr-account', $account->qr_token);
 
         return view('admin.rekening-qr', compact('account', 'scanUrl'));

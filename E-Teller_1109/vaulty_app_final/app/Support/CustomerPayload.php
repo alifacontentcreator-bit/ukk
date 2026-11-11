@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Utilitas ini menyediakan fungsi pendukung bersama untuk pemrosesan customer payload. */
+
 
 namespace App\Support;
 

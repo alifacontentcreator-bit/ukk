@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Konfigurasi ini mengatur perilaku komponen session pada aplikasi Laravel. */
+
 
 use Illuminate\Support\Str;
 

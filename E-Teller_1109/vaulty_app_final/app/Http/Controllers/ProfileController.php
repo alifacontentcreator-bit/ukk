@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Controller ini menghubungkan permintaan halaman fitur profile controller dengan validasi, proses aplikasi, dan tampilan yang sesuai. */
+
 
 namespace App\Http\Controllers;
 

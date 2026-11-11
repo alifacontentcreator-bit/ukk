@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Migrasi ini mengubah struktur basis data untuk 2026 11 06 170000 remove weekend duty schedules; perubahan dijalankan dan dibatalkan oleh mekanisme migrasi Laravel. */
+
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;

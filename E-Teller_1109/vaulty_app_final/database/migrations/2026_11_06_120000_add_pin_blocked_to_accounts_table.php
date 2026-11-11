@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Migrasi ini mengubah struktur basis data untuk 2026 11 06 120000 add pin blocked to accounts table; perubahan dijalankan dan dibatalkan oleh mekanisme migrasi Laravel. */
+
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;

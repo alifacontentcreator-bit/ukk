@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Service ini menampung proses bisnis bersama untuk fitur shift swap service agar dapat dipakai konsisten oleh beberapa bagian aplikasi. */
+
 
 namespace App\Services;
 

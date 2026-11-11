@@ -1,5 +1,7 @@
 #!/usr/bin/env php
 <?php
+/* Tujuan file: Entry point CLI Laravel untuk menjalankan perintah Artisan pada aplikasi. */
+
 
 use Illuminate\Foundation\Application;
 use Symfony\Component\Console\Input\ArgvInput;

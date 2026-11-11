@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Pengujian ini memeriksa perilaku aplikasi pada skenario teller slip print test agar alur terkait tetap berjalan sesuai harapan. */
+
 
 namespace Tests\Feature;
 

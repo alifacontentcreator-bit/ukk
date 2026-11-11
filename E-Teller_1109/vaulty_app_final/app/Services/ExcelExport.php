@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Service ini menampung proses bisnis bersama untuk fitur excel export agar dapat dipakai konsisten oleh beberapa bagian aplikasi. */
+
 
 namespace App\Services;
 
@@ -18,9 +20,24 @@ class ExcelExport
         return (is_string($value) && preg_match('/^[=+\-@]/', $value)) ? "'" . $value : $value;
     }
 
-    public function download(string $filename, array $headers, iterable $rows, string $title = 'Data'): StreamedResponse
-    {
-        $data = [$headers];
+    public function download(
+        string $filename,
+        array $headers,
+        iterable $rows,
+        string $title = 'Data',
+        array $meta = []
+    ): StreamedResponse {
+        $data = [];
+
+        // Baris informasi di atas tabel (mis. identitas rekening & periode mutasi).
+        foreach ($meta as $line) {
+            $line = is_array($line) ? $line : [$line];
+            $data[] = array_map(fn ($v) => $this->safe($v), array_values($line));
+        }
+
+        $headerRow = count($data) + 1;
+        $data[] = $headers;
+
         foreach ($rows as $row) {
             $data[] = array_map(fn ($v) => $this->safe($v), array_values($row));
         }
@@ -31,9 +48,16 @@ class ExcelExport
         $sheet->fromArray($data, null, 'A1');
 
         $lastCol = chr(ord('A') + count($headers) - 1);
-        $sheet->getStyle("A1:{$lastCol}1")->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
-        $sheet->getStyle("A1:{$lastCol}1")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('55693D');
-        $sheet->freezePane('A2');
+        $sheet->getStyle("A{$headerRow}:{$lastCol}{$headerRow}")
+            ->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
+        $sheet->getStyle("A{$headerRow}:{$lastCol}{$headerRow}")
+            ->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('55693D');
+
+        if (!empty($meta)) {
+            $sheet->getStyle('A1')->getFont()->setBold(true);
+        }
+
+        $sheet->freezePane('A' . ($headerRow + 1));
         foreach (range('A', $lastCol) as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }

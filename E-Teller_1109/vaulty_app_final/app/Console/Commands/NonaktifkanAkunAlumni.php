@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Perintah Artisan ini menjalankan tugas administrasi nonaktifkan akun alumni yang dapat dipanggil melalui CLI. */
+
 
 namespace App\Console\Commands;
 
@@ -17,7 +19,7 @@ use Illuminate\Support\Facades\Log;
  * Aturan: siswa masuk tahun X (kolom users.angkatan) dianggap alumni pada
  * 31 Desember tahun (X + 3). Contoh: angkatan 2024 -> nonaktif pada
  * 31 Desember 2027.
- *
+ * 
  * Cara pakai manual:
  *   php artisan akun:nonaktifkan-alumni --dry-run   (hanya melihat daftar, tanpa mengubah status)
  *   php artisan akun:nonaktifkan-alumni             (nonaktifkan seluruh alumni)
@@ -29,7 +31,7 @@ class NonaktifkanAkunAlumni extends Command
 
     protected $description = 'Nonaktifkan akun siswa yang sudah menjadi alumni (angkatan + 3 tahun, per 31 Desember) tanpa menghapus data';
 
-    /** Lama sekolah SMK (tahun). */
+    /** Lama sekolah SMK (3tahun). */
     private const LAMA_STUDI_TAHUN = 3;
 
     public function handle(): int

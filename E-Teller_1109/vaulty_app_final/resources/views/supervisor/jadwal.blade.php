@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman jadwal, termasuk data dan aksi yang disediakan aplikasi. --}}
 @extends('layouts.supervisor')
 
 @section('title', 'Jadwal Jaga')

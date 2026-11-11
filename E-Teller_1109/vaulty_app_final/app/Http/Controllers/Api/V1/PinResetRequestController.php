@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Controller ini menangani alur API untuk fitur pin reset request controller, termasuk menerima permintaan dan mengembalikan respons sesuai proses bisnisnya. */
+
 
 namespace App\Http\Controllers\Api\V1;
 

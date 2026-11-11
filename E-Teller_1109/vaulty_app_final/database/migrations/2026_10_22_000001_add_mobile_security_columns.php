@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Migrasi ini mengubah struktur basis data untuk 2026 10 22 000001 add mobile security columns; perubahan dijalankan dan dibatalkan oleh mekanisme migrasi Laravel. */
+
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;

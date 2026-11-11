@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Migrasi ini mengubah struktur basis data untuk 0001 01 01 000002 create jobs table; perubahan dijalankan dan dibatalkan oleh mekanisme migrasi Laravel. */
+
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;

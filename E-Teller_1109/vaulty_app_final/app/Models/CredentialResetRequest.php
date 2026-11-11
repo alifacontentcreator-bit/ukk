@@ -7,14 +7,19 @@ use Illuminate\Database\Eloquent\Model;
 
 class CredentialResetRequest extends Model
 {
+    //Konstanta jenis permintaan
     public const TYPE_PIN = 'pin';
     public const TYPE_PASSWORD = 'password';
+
+    //Konstanta status permintaan
 
     public const STATUS_PENDING = 'pending';
     public const STATUS_APPROVED = 'approved';
     public const STATUS_REJECTED = 'rejected';
     public const STATUS_EXPIRED = 'expired';
     public const STATUS_CANCELLED = 'cancelled';
+
+    //menentukan kolom yang boleh diisi menggunakan fitur mass assignment Laravel.
 
     protected $fillable = [
         'account_id', 'user_id', 'type', 'requested_by', 'reason', 'verification_note',
@@ -25,8 +30,10 @@ class CredentialResetRequest extends Model
         'reviewed_at' => 'datetime',
         'expires_at' => 'datetime',
     ];
+    //satu permintaan reset dimiliki oleh satu rekening.
 
     public function account() { return $this->belongsTo(Account::class); }
+    //Menghubungkan permintaan reset dengan pemilik akun.
     public function user() { return $this->belongsTo(User::class); }
     public function requester() { return $this->belongsTo(User::class, 'requested_by'); }
     public function reviewer() { return $this->belongsTo(User::class, 'reviewed_by'); }

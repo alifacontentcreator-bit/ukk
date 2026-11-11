@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Observer ini menjalankan pencatatan atau proses terkait ketika data audit observer mengalami perubahan. */
+
 
 namespace App\Observers;
 

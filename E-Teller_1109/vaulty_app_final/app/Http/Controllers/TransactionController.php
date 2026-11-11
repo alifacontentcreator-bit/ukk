@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Controller ini menghubungkan permintaan halaman fitur transaction controller dengan validasi, proses aplikasi, dan tampilan yang sesuai. */
+
 
 namespace App\Http\Controllers;
 
@@ -6,17 +8,22 @@ use App\Models\Transaction;
 use App\Models\Account;
 use App\Models\CustomerTransactionApproval;
 use App\Models\SystemSetting;
+use App\Services\SlipFormatter;
+use App\Services\SlipPdfService;
 use App\Services\TransactionActivityLogger;
 use App\Services\TransactionPostingService;
 use DomainException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\Response;
 
 class TransactionController extends Controller
 {
+
     public function create(Request $request, TransactionPostingService $posting)
     {
+        // Mengambil nomor rekening dan jenis transaksi dari permintaan, jika ada
         $account_number = $request->input('account_number');
         $type = $request->input('type', 'deposit');
         $nasabah = null;
@@ -52,6 +59,24 @@ class TransactionController extends Controller
         return view('teller.cetak-slip', compact('transaction'));
     }
 
+    /**
+     * Unduh slip transaksi sebagai PDF (satu-satunya format cetak slip).
+     */
+    public function printSlipPdf($id, SlipPdfService $pdf): Response
+    {
+        $transaction = Transaction::with(['account.user', 'teller'])
+            ->withExists('correction')
+            ->findOrFail($id);
+
+        $bytes = $pdf->render(SlipFormatter::detail($transaction));
+
+        return response($bytes, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="slip-'
+                . ($transaction->reference_number ?: $transaction->id) . '.pdf"',
+        ]);
+    }
+
     public function resolveAccountQr(string $token)
     {
         $account = Account::where('qr_token', $token)->firstOrFail();
@@ -79,6 +104,9 @@ class TransactionController extends Controller
                 ?? $approval->reference_number,
             'slip_url' => $approval->transaction_id
                 ? route('teller.transaksi.cetak', $approval->transaction_id)
+                : null,
+            'slip_pdf_url' => $approval->transaction_id
+                ? route('teller.transaksi.cetak-pdf', $approval->transaction_id)
                 : null,
         ]);
     }

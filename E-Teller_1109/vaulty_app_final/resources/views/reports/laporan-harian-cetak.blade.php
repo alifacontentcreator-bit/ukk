@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman laporan harian cetak, termasuk data dan aksi yang disediakan aplikasi. --}}
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -94,6 +95,8 @@
 
 <div class="toolbar">
     <button type="button" class="primary" onclick="window.print()">Cetak Laporan</button>
+    <a class="primary" href="{{ $pdfUrl }}" target="_blank" rel="noopener">Unduh PDF</a>
+    <a href="{{ $excelUrl }}">Unduh Excel</a>
     <a href="{{ $backUrl }}">Kembali</a>
 </div>
 

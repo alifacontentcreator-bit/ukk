@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman dashboard, termasuk data dan aksi yang disediakan aplikasi. --}}
 @extends('layouts.supervisor')
 
 @section('title', 'Dasbor Supervisor')

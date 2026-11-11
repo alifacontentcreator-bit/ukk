@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: File ini mendefinisikan jalur masuk dan pemetaan permintaan untuk fitur web ke middleware atau handler aplikasi. */
+
 
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\DB;
@@ -24,6 +26,8 @@ use App\Http\Controllers\SupervisorAuditJournalController;
 use App\Http\Controllers\SupervisorShiftSwapController;
 use App\Http\Controllers\TellerShiftSwapController;
 use App\Http\Controllers\PetugasNotifikasiController;
+use App\Http\Controllers\StatementController;
+use App\Http\Controllers\SupervisorReconciliationController;
 
 use App\Models\User;
 use App\Models\Transaction;
@@ -121,8 +125,25 @@ Route::middleware('auth')->group(function () {
             Route::get('/receipt/{transaction}', [CustomerPortalController::class, 'receipt'])
                 ->name('receipt');
 
+            Route::get('/receipt/{transaction}/pdf', [CustomerPortalController::class, 'receiptPdf'])
+                ->name('receipt.pdf');
+
             Route::get('/notifikasi', [CustomerPortalController::class, 'notifications'])
                 ->name('notifications');
+
+            // Mutasi rekening: ajukan cetak mutasi & unduh berkas PDF dari petugas.
+            Route::get('/mutasi', [CustomerPortalController::class, 'statements'])
+                ->name('mutasi');
+
+            Route::post('/mutasi', [CustomerPortalController::class, 'requestStatement'])
+                ->name('mutasi.ajukan')
+                ->middleware('throttle:5,1');
+
+            Route::get('/mutasi/{statement}/pdf', [CustomerPortalController::class, 'downloadStatement'])
+                ->name('mutasi.pdf');
+
+            Route::get('/mutasi/{statement}/excel', [CustomerPortalController::class, 'downloadStatementExcel'])
+                ->name('mutasi.excel');
 
             Route::get('/qr-identitas', [CustomerPortalController::class, 'qrIdentity'])
                 ->name('qr-data');
@@ -237,6 +258,13 @@ Route::middleware('auth')->group(function () {
             Route::get('/audit-log', [AdminAuditLogController::class, 'index'])
                 ->name('audit-log');
 
+            // Ekspor Log & Audit ke PDF / Excel.
+            Route::get('/audit-log/pdf', [AdminAuditLogController::class, 'exportPdf'])
+                ->name('audit-log.pdf');
+
+            Route::get('/audit-log/excel', [AdminAuditLogController::class, 'exportExcel'])
+                ->name('audit-log.excel');
+
             // Notifikasi (ikon lonceng) untuk Admin: informasi & pengajuan dari petugas.
             Route::get('/notifikasi', [PetugasNotifikasiController::class, 'index'])
                 ->name('notifikasi');
@@ -266,6 +294,9 @@ Route::middleware('auth')->group(function () {
 
             Route::get('/jurnal-akuntansi/export-pdf', [AccountingJournalController::class, 'exportPdf'])
                 ->name('jurnal.pdf');
+
+            Route::get('/jurnal-akuntansi/export-excel', [AccountingJournalController::class, 'exportExcel'])
+                ->name('jurnal.excel');
         });
 
 
@@ -301,112 +332,15 @@ Route::middleware('auth')->group(function () {
             // REKONSILIASI KAS
             // ====================================================
 
-            Route::get('/rekonsiliasi', function (
-                Request $request,
-                CashDrawerService $cashService
-            ) {
+            Route::get('/rekonsiliasi', [SupervisorReconciliationController::class, 'index'])
+                ->name('rekonsiliasi');
 
-                $validated = $request->validate([
-                    'tanggal' => ['nullable', 'date'],
-                ]);
+            // Ekspor laporan rekonsiliasi kas ke PDF / Excel.
+            Route::get('/rekonsiliasi/pdf', [SupervisorReconciliationController::class, 'exportPdf'])
+                ->name('rekonsiliasi.pdf');
 
-                $tanggal = $validated['tanggal'] ?? today()->toDateString();
-
-                $totalTeller = User::where('role', 'teller')->count();
-
-                // Data laporan Teller pada tanggal yang dipilih.
-                $reports = DailyReport::with('teller')
-                    ->whereDate('report_date', $tanggal)
-                    ->get()
-                    ->map(function ($r) {
-
-                        $r->total_fisik = $r->totalFisik();
-
-                        // Kas akhir sistem = kas awal + setoran - penarikan.
-                        $r->total_sistem = $r->saldoAkhirSistem();
-
-                        $r->selisih = $r->selisihKas();
-
-                        return $r;
-                    });
-
-                // Ringkasan rekonsiliasi.
-                $summary = [
-                    'total_teller' => $totalTeller,
-
-                    'sudah_lapor' => $reports->count(),
-
-                    'klop' => $reports->filter(
-                        fn ($r) => abs((float) $r->selisih) < 0.01
-                    )->count(),
-
-                    'selisih' => $reports->filter(
-                        fn ($r) => abs((float) $r->selisih) >= 0.01
-                    )->count(),
-                ];
-
-                $tellers = User::where('role', 'teller')
-                    ->orderBy('name')
-                    ->get();
-
-                // Saldo awal brankas: nilai dasar yang berlaku terus-menerus
-                // (tidak disimpan per tanggal dan tidak direset setiap hari).
-                $vaultInitial = $cashService->vaultInitialBalance();
-
-                // Penyerahan modal yang masih menunggu konfirmasi Teller.
-                $openingTransfers = CashTransfer::with('teller')
-                    ->where('type', 'opening')
-                    ->whereDate('transfer_date', $tanggal)
-                    ->where('status', 'pending')
-                    ->latest()
-                    ->get();
-
-                // Total modal yang sudah dikonfirmasi Teller.
-                $confirmedOpening = CashTransfer::where('type', 'opening')
-                    ->whereDate('transfer_date', $tanggal)
-                    ->where('status', 'confirmed')
-                    ->sum('amount');
-
-                // Pengembalian kas Teller yang menunggu konfirmasi Supervisor.
-                $closingTransfers = CashTransfer::with('teller')
-                    ->where('type', 'closing')
-                    ->whereDate('transfer_date', $tanggal)
-                    ->where('status', 'pending')
-                    ->latest()
-                    ->get();
-
-                // Permintaan tambah modal dari Teller yang belum diproses.
-                $cashRequests = CashRequest::with('teller')
-                    ->where('status', CashRequest::STATUS_PENDING)
-                    ->latest()
-                    ->get();
-
-                // Saldo brankas saat ini: saldo awal ditambah kas yang masuk
-                // dikurangi modal yang diserahkan. Dihitung kumulatif dari
-                // seluruh pergerakan kas (tidak reset harian dan tidak
-                // terpengaruh filter tanggal tabel laporan).
-                $vaultBalanceHitung = $cashService->supervisorBalance();
-
-                // Uang fisik di brankas tidak mungkin minus. Bila pergerakan modal
-                // melebihi saldo awal, tampilkan Rp 0 dan beri peringatan.
-                $vaultShortage = $vaultBalanceHitung < 0 ? abs($vaultBalanceHitung) : 0.0;
-                $vaultBalance = max(0.0, $vaultBalanceHitung);
-
-                return view('supervisor.rekonsiliasi', compact(
-                    'tanggal',
-                    'summary',
-                    'reports',
-                    'tellers',
-                    'vaultInitial',
-                    'vaultBalance',
-                    'vaultShortage',
-                    'openingTransfers',
-                    'confirmedOpening',
-                    'closingTransfers',
-                    'cashRequests'
-                ));
-
-            })->name('rekonsiliasi');
+            Route::get('/rekonsiliasi/excel', [SupervisorReconciliationController::class, 'exportExcel'])
+                ->name('rekonsiliasi.excel');
 
 
             // Pengelolaan Saldo Awal Brankas
@@ -452,6 +386,9 @@ Route::middleware('auth')->group(function () {
 
             Route::get('/petugas/absensi/export', [SupervisorDutyController::class, 'attendanceExport'])
                 ->name('absensi.export');
+
+            Route::get('/petugas/absensi/pdf', [SupervisorDutyController::class, 'attendancePdf'])
+                ->name('absensi.pdf');
 
             Route::get('/petugas/jadwal', [SupervisorDutyController::class, 'scheduleIndex'])
                 ->name('jadwal');
@@ -512,6 +449,13 @@ Route::middleware('auth')->group(function () {
             Route::get('/laporan/cetak', [ReportController::class, 'print'])
                 ->name('laporan.cetak');
 
+            // Ekspor rekap kas harian (semua teller) ke PDF / Excel.
+            Route::get('/laporan/cetak/pdf', [ReportController::class, 'printPdf'])
+                ->name('laporan.cetak-pdf');
+
+            Route::get('/laporan/cetak/excel', [ReportController::class, 'printExcel'])
+                ->name('laporan.cetak-excel');
+
             Route::post('/laporan/{report}/approve', [ReportController::class, 'approve'])
                 ->name('laporan.approve');
 
@@ -520,6 +464,13 @@ Route::middleware('auth')->group(function () {
 
             Route::get('/laporan/{report}/cetak', [ReportController::class, 'printDailyReport'])
                 ->name('laporan.cetak-laporan');
+
+            // Rekap penutupan kas satu Teller: PDF & Excel.
+            Route::get('/laporan/{report}/pdf', [ReportController::class, 'printDailyReportPdf'])
+                ->name('laporan.pdf');
+
+            Route::get('/laporan/{report}/excel', [ReportController::class, 'printDailyReportExcel'])
+                ->name('laporan.excel');
 
             Route::post('/laporan/{report}/reopen', [ReportController::class, 'reopen'])
                 ->name('laporan.reopen');
@@ -531,6 +482,13 @@ Route::middleware('auth')->group(function () {
             // Jurnal Audit Supervisor (halaman hanya-baca: transaksi berhasil & gagal).
             Route::get('/jurnal', [SupervisorAuditJournalController::class, 'index'])
                 ->name('jurnal');
+
+            // Ekspor Jurnal Audit ke PDF / Excel.
+            Route::get('/jurnal/pdf', [SupervisorAuditJournalController::class, 'exportPdf'])
+                ->name('jurnal.pdf');
+
+            Route::get('/jurnal/excel', [SupervisorAuditJournalController::class, 'exportExcel'])
+                ->name('jurnal.excel');
         });
 
 
@@ -625,8 +583,35 @@ Route::middleware('auth')->group(function () {
             Route::get('/transaksi/{id}/cetak', [TransactionController::class, 'printSlip'])
                 ->name('transaksi.cetak');
 
+            Route::get('/transaksi/{id}/cetak-pdf', [TransactionController::class, 'printSlipPdf'])
+                ->name('transaksi.cetak-pdf');
+
             Route::get('/qr-identitas/{token}', [TransactionController::class, 'resolveAccountQr'])
                 ->name('qr-identitas.resolve');
+
+
+            // Cetak Mutasi Rekening (Tanggal, Keterangan, Debit, Kredit, Saldo Akhir)
+            Route::get('/mutasi', [StatementController::class, 'index'])
+                ->name('mutasi');
+
+            Route::get('/mutasi/pdf', [StatementController::class, 'pdf'])
+                ->name('mutasi.pdf');
+
+            Route::get('/mutasi/excel', [StatementController::class, 'excel'])
+                ->name('mutasi.excel');
+
+            Route::get('/mutasi/cetak', [StatementController::class, 'printView'])
+                ->name('mutasi.cetak');
+
+            // Permintaan mutasi yang diajukan nasabah dari aplikasi mobile
+            Route::post('/mutasi/permintaan/{statement}/kirim', [StatementController::class, 'kirim'])
+                ->name('mutasi.kirim');
+
+            Route::post('/mutasi/permintaan/{statement}/tolak', [StatementController::class, 'tolak'])
+                ->name('mutasi.tolak');
+
+            Route::get('/mutasi/permintaan/{statement}/berkas', [StatementController::class, 'berkas'])
+                ->name('mutasi.berkas');
 
 
             // Koreksi Transaksi
@@ -709,6 +694,13 @@ Route::middleware('auth')->group(function () {
             // Cetak rekap laporan harian (penutupan kas)
             Route::get('/laporan/{report}/cetak', [ReportController::class, 'printDailyReport'])
                 ->name('laporan.cetak');
+
+            // Rekap penutupan kas Teller dalam format PDF & Excel.
+            Route::get('/laporan/{report}/pdf', [ReportController::class, 'printDailyReportPdf'])
+                ->name('laporan.pdf');
+
+            Route::get('/laporan/{report}/excel', [ReportController::class, 'printDailyReportExcel'])
+                ->name('laporan.excel');
         });
 
 });

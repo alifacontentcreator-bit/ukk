@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Pengujian ini memeriksa perilaku aplikasi pada skenario bootstrap agar alur terkait tetap berjalan sesuai harapan. */
+
 
 /*
 |--------------------------------------------------------------------------

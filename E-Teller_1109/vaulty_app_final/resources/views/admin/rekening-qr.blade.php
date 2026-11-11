@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman rekening qr, termasuk data dan aksi yang disediakan aplikasi. --}}
 @extends('layouts.admin')
 
 @section('title', 'QR Rekening Nasabah')

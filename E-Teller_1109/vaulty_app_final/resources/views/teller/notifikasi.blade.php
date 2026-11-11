@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman notifikasi, termasuk data dan aksi yang disediakan aplikasi. --}}
 @extends('layouts.teller')
 
 @section('title', 'Notifikasi Teller')

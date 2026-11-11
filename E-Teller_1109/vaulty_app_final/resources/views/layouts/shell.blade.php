@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman shell, termasuk data dan aksi yang disediakan aplikasi. --}}
 <!DOCTYPE html>
 <html lang="id">
 <head>

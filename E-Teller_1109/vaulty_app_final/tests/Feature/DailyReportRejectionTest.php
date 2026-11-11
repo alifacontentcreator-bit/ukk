@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Pengujian ini memeriksa perilaku aplikasi pada skenario daily report rejection test agar alur terkait tetap berjalan sesuai harapan. */
+
 
 namespace Tests\Feature;
 

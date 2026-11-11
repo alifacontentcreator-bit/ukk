@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman lupa sandi, termasuk data dan aksi yang disediakan aplikasi. --}}
 @extends('layouts.auth')
 
 @section('title', 'Lupa sandi')

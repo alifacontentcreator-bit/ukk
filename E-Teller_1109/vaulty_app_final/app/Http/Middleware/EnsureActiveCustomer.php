@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Middleware ini memeriksa aturan akses atau kondisi permintaan sebelum fitur ensure active customer diteruskan ke controller. */
+
 
 namespace App\Http\Middleware;
 

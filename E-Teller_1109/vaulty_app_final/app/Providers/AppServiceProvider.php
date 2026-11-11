@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Provider ini mendaftarkan atau menyiapkan layanan aplikasi app service provider saat Laravel dijalankan. */
+
 
 namespace App\Providers;
 

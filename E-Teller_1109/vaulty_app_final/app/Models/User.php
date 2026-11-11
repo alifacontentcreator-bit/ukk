@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Model ini merepresentasikan data user di basis data serta menjadi tempat definisi atribut dan relasi yang digunakan aplikasi. */
+
 
 namespace App\Models;
 

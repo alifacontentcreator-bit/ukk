@@ -11,13 +11,18 @@ class AdminPinResetController extends Controller
 {
     public function index(PinResetService $resets)
     {
+        //Memanggil fungsi expireStale() dari PinResetService.
         $resets->expireStale();
+
+        //Kode ini mengambil daftar pengajuan reset PIN yang masih terbuka.
 
         $pending = CredentialResetRequest::with(['account.user', 'requester'])
             ->open()
             ->where('type', CredentialResetRequest::TYPE_PIN)
             ->oldest()
             ->get();
+
+            //Kode ini mengambil riwayat pengajuan reset PIN yang sudah tidak berstatus pending.
 
         $history = CredentialResetRequest::with(['account.user', 'requester', 'reviewer'])
             ->where('type', CredentialResetRequest::TYPE_PIN)
@@ -26,12 +31,18 @@ class AdminPinResetController extends Controller
             ->paginate(10)
             ->withQueryString();
 
+            //Artinya mengirim data ke halaman Blade:
+
         return view('admin.reset-pin', compact('pending', 'history'));
     }
 
     public function approve(int $id, PinResetService $resets)
     {
+
+    //Mencari data pengajuan berdasarkan ID.
         $request = CredentialResetRequest::findOrFail($id);
+
+        //Mencoba menjalankan proses persetujuan reset PIN melalui Service.
 
         try {
             $approved = $resets->approve($request, auth()->user());
@@ -54,6 +65,7 @@ class AdminPinResetController extends Controller
 
         try {
             $resets->reject(CredentialResetRequest::findOrFail($id), auth()->user(), $data['reason']);
+            //Jika terjadi kesalahan aturan bisnis, sistem menangkap kesalahan tersebut.
         } catch (DomainException $exception) {
             return back()->withErrors(['reset_pin' => $exception->getMessage()]);
         }

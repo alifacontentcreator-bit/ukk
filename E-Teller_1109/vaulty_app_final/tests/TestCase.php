@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Pengujian ini memeriksa perilaku aplikasi pada skenario test case agar alur terkait tetap berjalan sesuai harapan. */
+
 
 namespace Tests;
 

@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman absensi, termasuk data dan aksi yang disediakan aplikasi. --}}
 @extends('layouts.teller')
 
 @section('title', 'Absensi Jaga')

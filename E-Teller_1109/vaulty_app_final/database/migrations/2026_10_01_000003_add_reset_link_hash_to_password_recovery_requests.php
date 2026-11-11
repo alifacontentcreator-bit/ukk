@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Migrasi ini mengubah struktur basis data untuk 2026 10 01 000003 add reset link hash to password recovery requests; perubahan dijalankan dan dibatalkan oleh mekanisme migrasi Laravel. */
+
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;

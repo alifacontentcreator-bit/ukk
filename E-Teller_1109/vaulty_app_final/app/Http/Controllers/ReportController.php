@@ -15,6 +15,9 @@ use App\Models\CashRequest;
 use App\Models\SystemSetting;
 
 use App\Services\CashDrawerService;
+use App\Services\ReportExcelService;
+use App\Services\ReportPdfService;
+use Symfony\Component\HttpFoundation\Response;
 
 class ReportController extends Controller
 {
@@ -314,6 +317,34 @@ class ReportController extends Controller
      */
     public function print(Request $request)
     {
+        return view('supervisor.laporan-harian-cetak', $this->dailyRecapData($request));
+    }
+
+    /** Unduh rekap kas harian Supervisor sebagai PDF. */
+    public function printPdf(Request $request, ReportPdfService $pdf): Response
+    {
+        $data = $this->dailyRecapData($request);
+
+        return response($pdf->render($this->dailyRecapDocument($data)), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $this->dailyRecapFileName($data) . '.pdf"',
+        ]);
+    }
+
+    /** Unduh rekap kas harian Supervisor sebagai Excel. */
+    public function printExcel(Request $request, ReportExcelService $excel)
+    {
+        $data = $this->dailyRecapData($request);
+
+        return $excel->download(
+            $this->dailyRecapFileName($data) . '.xlsx',
+            $this->dailyRecapSheets($data)
+        );
+    }
+
+    /** @return array<string, mixed> */
+    private function dailyRecapData(Request $request): array
+    {
         $validated = $request->validate([
             'tanggal' => ['nullable', 'date'],
         ]);
@@ -342,14 +373,82 @@ class ReportController extends Controller
 
         $saldoAkhirSistem = $cashService->supervisorBalance($cashService->vaultBaseline(), $tanggal);
 
-        return view('supervisor.laporan-harian-cetak', compact(
+        return compact(
             'tanggal',
             'saldoAwalSistem',
             'setoran',
             'penarikan',
             'administrasi',
             'saldoAkhirSistem'
-        ));
+        );
+    }
+
+    private function dailyRecapFileName(array $data): string
+    {
+        return 'rekap-kas-harian-' . str_replace('-', '', (string) $data['tanggal']);
+    }
+
+    /** @return array<string, mixed> */
+    private function dailyRecapDocument(array $data): array
+    {
+        $tanggal = \Carbon\Carbon::parse($data['tanggal']);
+        $rp = fn ($value) => 'Rp ' . number_format((float) $value, 0, ',', '.');
+
+        return [
+            'title' => 'REKAP KAS HARIAN BANK MINI',
+            'subtitle' => $tanggal->locale('id')->translatedFormat('l, d F Y'),
+            'meta' => [
+                ['Tanggal laporan', $tanggal->format('d/m/Y')],
+                ['Dicetak', now()->format('d/m/Y H:i') . ' WIB'],
+                ['Saldo awal brankas', $rp($data['saldoAwalSistem'])],
+                ['Saldo akhir sistem', $rp($data['saldoAkhirSistem'])],
+            ],
+            'sections' => [
+                [
+                    'heading' => 'Rekapitulasi Kas',
+                    'headers' => ['Uraian', 'Nominal'],
+                    'aligns' => ['left', 'right'],
+                    'widths' => [3, 1],
+                    'rows' => [
+                        ['Setoran (dana masuk)', $rp($data['setoran'])],
+                        ['Penarikan (dana keluar)', $rp($data['penarikan'])],
+                        ['Biaya administrasi', $rp($data['administrasi'])],
+                    ],
+                    'totals' => [
+                        ['Saldo akhir sistem', $rp($data['saldoAkhirSistem'])],
+                    ],
+                ],
+            ],
+            'notes' => [
+                'Saldo awal brankas: ' . $rp($data['saldoAwalSistem']),
+                'Laporan ini merangkum seluruh transaksi teller pada tanggal di atas.',
+            ],
+            'printed_by' => auth()->user()?->name,
+        ];
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function dailyRecapSheets(array $data): array
+    {
+        return [[
+            'title' => 'Rekap Kas',
+            'rows' => [
+                ['REKAP KAS HARIAN BANK MINI'],
+                ['Tanggal', \Carbon\Carbon::parse($data['tanggal'])->format('d/m/Y')],
+                ['Dicetak', now()->format('d/m/Y H:i') . ' WIB'],
+                [],
+                ['Uraian', 'Nominal'],
+                ['Setoran (dana masuk)', (float) $data['setoran']],
+                ['Penarikan (dana keluar)', (float) $data['penarikan']],
+                ['Biaya administrasi', (float) $data['administrasi']],
+                ['Saldo awal brankas', (float) $data['saldoAwalSistem']],
+                ['Saldo akhir sistem', (float) $data['saldoAkhirSistem']],
+            ],
+            'header_row' => 5,
+            'title_rows' => [1],
+            'bold_rows' => [10],
+            'money_columns' => ['B'],
+        ]];
     }
 
     /**
@@ -360,6 +459,48 @@ class ReportController extends Controller
      * saldo awal & uang fisik, daftar transaksi, serta kolom tanda tangan.
      */
     public function printDailyReport(DailyReport $report)
+    {
+        return view('reports.laporan-harian-cetak', $this->dailyReportData($report));
+    }
+
+    /** Unduh rekap laporan harian Teller sebagai PDF. */
+    public function printDailyReportPdf(DailyReport $report, ReportPdfService $pdf): Response
+    {
+        $data = $this->dailyReportData($report);
+
+        return response($pdf->render($this->dailyReportDocument($data)), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $this->dailyReportBaseName($data) . '.pdf"',
+        ]);
+    }
+
+    /** Unduh rekap laporan harian Teller sebagai Excel. */
+    public function printDailyReportExcel(DailyReport $report, ReportExcelService $excel)
+    {
+        $data = $this->dailyReportData($report);
+
+        return $excel->download(
+            $this->dailyReportBaseName($data) . '.xlsx',
+            $this->dailyReportSheets($data)
+        );
+    }
+
+    private function dailyReportBaseName(array $data): string
+    {
+        $report = $data['report'];
+        $teller = preg_replace('/[^A-Za-z0-9]+/', '-', $report->teller->name ?? 'teller');
+
+        return 'laporan-harian-'
+            . \Carbon\Carbon::parse($report->report_date)->format('Ymd')
+            . '-' . trim((string) $teller, '-');
+    }
+
+    /**
+     * Guard akses + seluruh data yang dipakai tampilan, PDF, dan Excel.
+     *
+     * @return array<string, mixed>
+     */
+    private function dailyReportData(DailyReport $report): array
     {
         $user = auth()->user();
 
@@ -426,14 +567,232 @@ class ReportController extends Controller
             ? route('teller.laporan', ['tanggal' => \Carbon\Carbon::parse($report->report_date)->toDateString()])
             : route('supervisor.laporan');
 
-        return view('reports.laporan-harian-cetak', compact(
+        $pdfUrl = $user->role === 'teller'
+            ? route('teller.laporan.pdf', $report)
+            : route('supervisor.laporan.pdf', $report);
+
+        $excelUrl = $user->role === 'teller'
+            ? route('teller.laporan.excel', $report)
+            : route('supervisor.laporan.excel', $report);
+
+        $totalFisik = $report->totalFisik();
+        $saldoAkhir = $report->saldoAkhirSistem();
+        $selisih = $report->selisihKas();
+        $fisikTerhitung = $totalFisik > 0;
+        $pengembalian = (float) $report->deposit_total
+            - (float) $report->withdrawal_total
+            - (float) $report->expected_cash;
+        $jumlahSetoran = $transactions->where('type', 'deposit')->count();
+        $rincianAwal = $report->rincianFisikAwal();
+        $rincianFisik = $report->rincianFisik();
+
+        return compact(
             'report',
             'transactions',
             'statusLabel',
             'catatanVerifikasi',
             'terbilang',
-            'backUrl'
-        ));
+            'backUrl',
+            'pdfUrl',
+            'excelUrl',
+            'totalFisik',
+            'saldoAkhir',
+            'selisih',
+            'fisikTerhitung',
+            'pengembalian',
+            'jumlahSetoran',
+            'rincianAwal',
+            'rincianFisik'
+        );
+    }
+
+    /** @return array<string, mixed> */
+    private function dailyReportDocument(array $data): array
+    {
+        $report = $data['report'];
+        $rp = fn ($value) => 'Rp ' . number_format((float) $value, 0, ',', '.');
+        $tanggal = \Carbon\Carbon::parse($report->report_date);
+
+        $rekapRows = [
+            ['Saldo awal', $rp($report->saldo_awal)],
+            ['Total setoran (' . $data['jumlahSetoran'] . ' transaksi)', $rp($report->deposit_total)],
+            ['Total penarikan', $rp($report->withdrawal_total)],
+        ];
+
+        if ((float) $data['pengembalian'] > 0) {
+            $rekapRows[] = ['Kas diserahkan ke brankas', '- ' . $rp($data['pengembalian'])];
+        }
+
+        $rekapRows[] = [
+            'Uang fisik di laci',
+            $data['fisikTerhitung'] ? $rp($data['totalFisik']) : 'Belum dihitung',
+        ];
+        $rekapRows[] = [
+            'Selisih kas',
+            $data['fisikTerhitung']
+                ? (abs((float) $data['selisih']) < 0.01
+                    ? $rp(0)
+                    : ((float) $data['selisih'] > 0 ? '+ ' : '- ') . $rp(abs((float) $data['selisih'])))
+                : '-',
+        ];
+
+        $rincian = [];
+        foreach ($data['rincianAwal'] as $baris) {
+            $rincian[] = ['Saldo awal', $rp($baris['nominal']), $baris['jumlah'] . ' ' . $baris['satuan'], $rp($baris['total'])];
+        }
+        foreach ($data['rincianFisik'] as $baris) {
+            $rincian[] = ['Uang fisik', $rp($baris['nominal']), $baris['jumlah'] . ' ' . $baris['satuan'], $rp($baris['total'])];
+        }
+
+        $transaksi = $data['transactions']->map(fn ($trx) => [
+            $trx->created_at?->format('d/m/Y H:i'),
+            $trx->reference_number ?: $trx->transaction_code,
+            $trx->type === 'deposit' ? 'Setor tunai' : 'Tarik tunai',
+            $trx->account?->account_number ?? '-',
+            $trx->account?->user?->name ?? 'Anonim',
+            $rp($trx->amount),
+        ])->all();
+
+        $notes = [
+            'Terbilang: ' . $data['terbilang'] . ($data['fisikTerhitung'] ? '' : ' (kas akhir sistem)'),
+            'Catatan verifikasi: ' . $data['catatanVerifikasi'],
+        ];
+
+        if ($data['fisikTerhitung'] && $report->catatan_selisih) {
+            $notes[] = 'Catatan teller: ' . $report->catatan_selisih;
+        }
+
+        if ($data['fisikTerhitung'] && $report->transaksiPenjelas->isNotEmpty()) {
+            $notes[] = 'Penjelasan selisih: transaksi hari ini ' . $report->transaksiPenjelas
+                ->map(fn ($trx) => '#' . $trx->id . ' '
+                    . ($trx->type === 'deposit' ? 'Setor tunai' : 'Tarik tunai')
+                    . ' ' . $rp($trx->amount))
+                ->implode(', ');
+        }
+
+        return [
+            'title' => 'LAPORAN HARIAN TELLER (PENUTUPAN KAS)',
+            'subtitle' => $tanggal->locale('id')->translatedFormat('l, d F Y')
+                . ' - Teller: ' . ($report->teller->name ?? 'Teller'),
+            'meta' => [
+                ['Tanggal', $tanggal->format('d/m/Y')],
+                ['Status', $data['statusLabel']],
+                ['Teller', $report->teller->name ?? 'Teller'],
+                ['Dicetak', now()->format('d/m/Y H:i') . ' WIB'],
+            ],
+            'sections' => [
+                [
+                    'heading' => 'Rekapitulasi Kas',
+                    'headers' => ['Uraian', 'Nominal'],
+                    'aligns' => ['left', 'right'],
+                    'widths' => [3, 1],
+                    'rows' => $rekapRows,
+                    'totals' => [['Saldo akhir sistem', $rp($data['saldoAkhir'])]],
+                ],
+                [
+                    'heading' => 'Rincian Lembaran (Saldo Awal & Uang Fisik)',
+                    'headers' => ['Jenis', 'Nominal', 'Jumlah', 'Total'],
+                    'aligns' => ['left', 'right', 'right', 'right'],
+                    'widths' => [1.4, 1.2, 1.2, 1.3],
+                    'rows' => $rincian,
+                ],
+                [
+                    'heading' => 'Transaksi',
+                    'headers' => ['Waktu', 'Referensi', 'Jenis', 'No. Rekening', 'Nasabah', 'Nominal'],
+                    'aligns' => ['left', 'left', 'left', 'left', 'left', 'right'],
+                    'widths' => [1.2, 1.4, 1.1, 1.5, 1.8, 1.3],
+                    'rows' => $transaksi,
+                ],
+            ],
+            'notes' => $notes,
+            'printed_by' => auth()->user()?->name,
+            'orientation' => 'landscape',
+        ];
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function dailyReportSheets(array $data): array
+    {
+        $report = $data['report'];
+
+        $rekap = [
+            ['LAPORAN HARIAN TELLER (PENUTUPAN KAS)'],
+            ['Tanggal', \Carbon\Carbon::parse($report->report_date)->format('d/m/Y')],
+            ['Teller', $report->teller->name ?? 'Teller'],
+            ['Status', $data['statusLabel']],
+            ['Dicetak', now()->format('d/m/Y H:i') . ' WIB'],
+            [],
+            ['Uraian', 'Nominal'],
+            ['Saldo awal', (float) $report->saldo_awal],
+            ['Total setoran (' . $data['jumlahSetoran'] . ' transaksi)', (float) $report->deposit_total],
+            ['Total penarikan', (float) $report->withdrawal_total],
+        ];
+
+        if ((float) $data['pengembalian'] > 0) {
+            $rekap[] = ['Kas diserahkan ke brankas', -1 * (float) $data['pengembalian']];
+        }
+
+        $rekap[] = ['Uang fisik di laci', $data['fisikTerhitung'] ? (float) $data['totalFisik'] : 'Belum dihitung'];
+        $rekap[] = ['Selisih kas', $data['fisikTerhitung'] ? (float) $data['selisih'] : '-'];
+        $saldoAkhirRow = count($rekap) + 1;
+        $rekap[] = ['Saldo akhir sistem', (float) $data['saldoAkhir']];
+        $rekap[] = [];
+        $rekap[] = ['Terbilang', $data['terbilang']];
+        $rekap[] = ['Catatan verifikasi', $data['catatanVerifikasi']];
+
+        if ($report->catatan_selisih) {
+            $rekap[] = ['Catatan teller', $report->catatan_selisih];
+        }
+
+        $rincian = [['Jenis', 'Nominal', 'Jumlah', 'Satuan', 'Total']];
+
+        foreach ($data['rincianAwal'] as $baris) {
+            $rincian[] = ['Saldo awal', (float) $baris['nominal'], (int) $baris['jumlah'], $baris['satuan'], (float) $baris['total']];
+        }
+
+        foreach ($data['rincianFisik'] as $baris) {
+            $rincian[] = ['Uang fisik', (float) $baris['nominal'], (int) $baris['jumlah'], $baris['satuan'], (float) $baris['total']];
+        }
+
+        if (count($rincian) === 1) {
+            $rincian[] = ['Saldo awal', (float) $report->saldo_awal, '-', '-', (float) $report->saldo_awal];
+        }
+
+        $transaksi = [['Waktu', 'Referensi', 'Jenis', 'No. Rekening', 'Nasabah', 'Nominal']];
+
+        foreach ($data['transactions'] as $trx) {
+            $transaksi[] = [
+                $trx->created_at?->format('d/m/Y H:i'),
+                $trx->reference_number ?: $trx->transaction_code,
+                $trx->type === 'deposit' ? 'Setor tunai' : 'Tarik tunai',
+                $trx->account?->account_number ?? '-',
+                $trx->account?->user?->name ?? 'Anonim',
+                (float) $trx->amount,
+            ];
+        }
+
+        return [
+            [
+                'title' => 'Rekap',
+                'rows' => $rekap,
+                'header_row' => 7,
+                'title_rows' => [1],
+                'bold_rows' => [$saldoAkhirRow],
+                'money_columns' => ['B'],
+            ],
+            [
+                'title' => 'Rincian Lembaran',
+                'rows' => $rincian,
+                'header_row' => 1,
+                'money_columns' => ['B', 'E'],
+            ],
+            [
+                'title' => 'Transaksi',
+                'rows' => $transaksi,
+                'header_row' => 1,
+                'money_columns' => ['F'],
+            ],
+        ];
     }
 
     // ========================================================

@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: File ini mendefinisikan jalur masuk dan pemetaan permintaan untuk fitur api ke middleware atau handler aplikasi. */
+
 
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\MeController;
@@ -7,6 +9,8 @@ use App\Http\Controllers\Api\V1\PinResetRequestController;
 use App\Http\Controllers\Api\V1\SlipController;
 use App\Http\Controllers\Api\V1\CustomerTransactionApprovalController;
 use App\Http\Controllers\Api\V1\TransactionHistoryController;
+use App\Http\Controllers\Api\V1\StatementController;
+use App\Http\Controllers\Api\V1\NotificationController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -61,6 +65,20 @@ Route::prefix('v1')->group(function () {
         Route::get('/slips', [SlipController::class, 'index']);
         Route::get('/slips/{uuid}', [SlipController::class, 'show']);
         Route::get('/slips/{uuid}/pdf', [SlipController::class, 'pdf']);
+
+        // Mutasi rekening: nasabah mengajukan dari mobile, Teller menyiapkan PDF,
+        // lalu nasabah menerima notifikasi dan dapat mengunduh berkasnya.
+        Route::get('/statements', [StatementController::class, 'index']);
+        Route::post('/statements', [StatementController::class, 'store'])
+            ->middleware('throttle:5,1');
+        Route::get('/statements/{statement}', [StatementController::class, 'show']);
+        Route::get('/statements/{statement}/pdf', [StatementController::class, 'pdf'])
+            ->name('api.statements.pdf');
+        Route::get('/statements/{statement}/excel', [StatementController::class, 'excel'])
+            ->name('api.statements.excel');
+
+        // Notifikasi nasabah (termasuk "Mutasi rekening siap diunduh").
+        Route::get('/notifications', [NotificationController::class, 'index']);
 
         // Fitur transaksi hanya dapat diakses setelah PIN diganti.
         Route::middleware('pin.ready')->group(function () {

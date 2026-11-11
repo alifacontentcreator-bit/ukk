@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Perintah Artisan ini menjalankan tugas administrasi test otp mail yang dapat dipanggil melalui CLI. */
+
 
 namespace App\Console\Commands;
 

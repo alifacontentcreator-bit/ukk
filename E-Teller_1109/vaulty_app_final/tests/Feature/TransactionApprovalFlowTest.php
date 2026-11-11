@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Pengujian ini memeriksa perilaku aplikasi pada skenario transaction approval flow test agar alur terkait tetap berjalan sesuai harapan. */
+
 
 namespace Tests\Feature;
 

@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman validasi, termasuk data dan aksi yang disediakan aplikasi. --}}
 @extends('layouts.supervisor')
 @section('title', 'Transaksi Lama Menunggu')
 @section('page-title', 'Transaksi Lama Menunggu')

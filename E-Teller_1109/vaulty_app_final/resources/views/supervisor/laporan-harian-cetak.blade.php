@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman laporan harian cetak, termasuk data dan aksi yang disediakan aplikasi. --}}
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -73,6 +74,10 @@
         <button type="submit">Filter Tanggal</button>
     </form>
     <button class="btn-print" onclick="window.print()">Cetak Laporan</button>
+    <a class="btn-print" style="display:inline-block;padding:8px;margin:0 5px;border-radius:4px;background:#fff;border:1px solid #ccc;color:#1E2718;text-decoration:none"
+       href="{{ route('supervisor.laporan.cetak-pdf', ['tanggal' => $tanggal]) }}" target="_blank" rel="noopener">Unduh PDF</a>
+    <a class="btn-print" style="display:inline-block;padding:8px;margin:0 5px;border-radius:4px;background:#fff;border:1px solid #ccc;color:#1E2718;text-decoration:none"
+       href="{{ route('supervisor.laporan.cetak-excel', ['tanggal' => $tanggal]) }}">Unduh Excel</a>
 </div>
 
 <div class="kertas-a4">

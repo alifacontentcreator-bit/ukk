@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman create, termasuk data dan aksi yang disediakan aplikasi. --}}
 @extends('layouts.admin')
 
 @section('title', 'Tambah Pengguna')
@@ -213,6 +214,7 @@
 
 @push('scripts')
     <script>
+        //Fungsi ini membaca role yang dipilih Administrator.
         function toggleFields() {
             const role = document.getElementById('roleSelect');
             if (!role) return;
@@ -231,6 +233,7 @@
             const tellerClass = document.getElementById('inputTellerClass');
             const email = document.getElementById('inputEmail');
             const emailRequiredNote = document.getElementById('emailRequiredNote');
+            //Mengecek apakah role yang dipilih termasuk nasabah, Teller, atau Supervisor.
 
             const needsEmail = ['customer', 'teller', 'supervisor'].includes(value);
             const isSupervisor = value === 'supervisor';

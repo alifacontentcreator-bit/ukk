@@ -1,9 +1,11 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman absensi, termasuk data dan aksi yang disediakan aplikasi. --}}
 @extends('layouts.supervisor')
 
 @section('title', 'Absensi Petugas')
 @section('page-title', 'Absensi Petugas')
 @section('page-subtitle', 'Kehadiran hari ini mengikuti jadwal shift (dipisah dari riwayat kehadiran seluruh petugas).')
 @section('page-actions')
+    <a class="btn btn-primary btn-sm" href="{{ route('supervisor.absensi.pdf', request()->query()) }}" target="_blank" rel="noopener"><x-icon name="file" /> Unduh PDF</a>
     <a class="btn btn-soft btn-sm" href="{{ route('supervisor.absensi.export', request()->query()) }}"><x-icon name="down" /> Unduh Excel</a>
 @endsection
 

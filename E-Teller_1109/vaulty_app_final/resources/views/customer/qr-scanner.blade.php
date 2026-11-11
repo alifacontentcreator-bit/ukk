@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman qr scanner, termasuk data dan aksi yang disediakan aplikasi. --}}
 @extends('layouts.app')
 
 @section('title', 'Pindai QR Rekening')

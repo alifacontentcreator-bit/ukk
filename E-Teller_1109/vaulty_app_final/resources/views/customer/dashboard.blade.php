@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman dashboard, termasuk data dan aksi yang disediakan aplikasi. --}}
 @extends('layouts.app')
 
 @section('title', 'Dasbor Nasabah')
@@ -105,6 +106,7 @@
                 <div class="quick-grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">
                     <a class="quick" href="{{ route('customer.saldo') }}"><span class="quick-icon"><x-icon name="wallet" /></span> Periksa Saldo</a>
                     <a class="quick" href="{{ route('customer.history') }}"><span class="quick-icon"><x-icon name="history" /></span> Riwayat</a>
+                    <a class="quick" href="{{ route('customer.mutasi') }}"><span class="quick-icon"><x-icon name="receipt" /></span> Mutasi</a>
                     <a class="quick" href="{{ route('customer.notifications') }}"><span class="quick-icon"><x-icon name="bell" /></span> Notifikasi</a>
                     <a class="quick" href="{{ route('customer.qr-data') }}"><span class="quick-icon"><x-icon name="qr" /></span> QR Nasabah</a>
                 </div>

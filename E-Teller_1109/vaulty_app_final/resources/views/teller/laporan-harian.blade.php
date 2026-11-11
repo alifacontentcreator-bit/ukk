@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman laporan harian, termasuk data dan aksi yang disediakan aplikasi. --}}
 @extends('layouts.teller')
 
 @section('title', 'Laporan Harian')
@@ -21,6 +22,8 @@
     <a class="btn btn-soft btn-sm no-print" href="{{ route('teller.koreksi') }}"><x-icon name="history" /> Riwayat transaksi</a>
     @if($reportHariIni)
         <a class="btn btn-soft btn-sm no-print" href="{{ route('teller.laporan.cetak', $reportHariIni->id) }}" target="_blank" rel="noopener"><x-icon name="printer" /> Cetak Rekap</a>
+        <a class="btn btn-primary btn-sm no-print" href="{{ route('teller.laporan.pdf', $reportHariIni->id) }}" target="_blank" rel="noopener"><x-icon name="file" /> PDF</a>
+        <a class="btn btn-soft btn-sm no-print" href="{{ route('teller.laporan.excel', $reportHariIni->id) }}"><x-icon name="down" /> Excel</a>
     @else
         <button class="btn btn-soft btn-sm no-print" type="button" onclick="window.print()"><x-icon name="printer" /> Cetak</button>
     @endif

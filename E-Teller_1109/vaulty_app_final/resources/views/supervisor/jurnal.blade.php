@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman jurnal, termasuk data dan aksi yang disediakan aplikasi. --}}
 @extends('layouts.supervisor')
 
 {{--
@@ -48,6 +49,16 @@
     Jurnal audit ini <b>hanya dapat dilihat</b>. Tidak ada tombol ubah maupun hapus, dan seluruh aktivitas transaksi
     (berhasil maupun gagal) tersimpan permanen beserta keterangannya.
 </p>
+
+<div class="actions section no-print" style="justify-content:flex-end">
+    <a class="btn btn-primary btn-sm"
+       href="{{ route('supervisor.jurnal.pdf', request()->only('from', 'to', 'teller_id', 'type', 'status', 'q')) }}"
+       target="_blank" rel="noopener"><x-icon name="file" /> Unduh PDF</a>
+    <a class="btn btn-soft btn-sm"
+       href="{{ route('supervisor.jurnal.excel', request()->only('from', 'to', 'teller_id', 'type', 'status', 'q')) }}">
+        <x-icon name="down" /> Unduh Excel
+    </a>
+</div>
 
 <section class="card section">
     <form method="GET" action="{{ route('supervisor.jurnal') }}" class="toolbar" data-auto-filter>

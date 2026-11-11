@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman jurnal, termasuk data dan aksi yang disediakan aplikasi. --}}
 @extends('layouts.admin')
 
 @section('title', 'Audit Jurnal Akuntansi')
@@ -9,7 +10,8 @@
             <div class="crumb"><span>Administrator</span><i>/</i><b>Jurnal Akuntansi</b></div>
         </div>
         <div class="page-actions">
-            <a class="btn btn-primary btn-sm" href="{{ route('admin.jurnal.pdf', $filters) }}" target="_blank" rel="noopener"><x-icon name="printer" /> Cetak PDF</a>
+            <a class="btn btn-primary btn-sm" href="{{ route('admin.jurnal.pdf', $filters) }}" target="_blank" rel="noopener"><x-icon name="file" /> Unduh PDF</a>
+            <a class="btn btn-soft btn-sm" href="{{ route('admin.jurnal.excel', $filters) }}"><x-icon name="down" /> Unduh Excel</a>
         </div>
     </div>
 

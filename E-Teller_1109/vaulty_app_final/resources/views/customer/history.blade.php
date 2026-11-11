@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman history, termasuk data dan aksi yang disediakan aplikasi. --}}
 @extends('layouts.app')
 
 @section('title', 'Riwayat Tabungan Digital')

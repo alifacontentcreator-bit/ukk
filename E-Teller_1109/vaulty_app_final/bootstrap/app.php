@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: File bootstrap ini menyiapkan komponen app saat aplikasi Laravel mulai dijalankan. */
+
 
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;

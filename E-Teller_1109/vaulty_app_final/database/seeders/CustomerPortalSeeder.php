@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Seeder ini mengisi data awal atau data pengembangan untuk fitur customer portal seeder. */
+
 
 namespace Database\Seeders;
 

@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman notifikasi, termasuk data dan aksi yang disediakan aplikasi. --}}
 @extends('layouts.admin')
 
 {{-- HALAMAN INI UNTUK: kotak masuk notifikasi Admin (ikon lonceng di kanan atas). --}}

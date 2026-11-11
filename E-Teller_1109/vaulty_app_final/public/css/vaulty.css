@@ -1,3 +1,5 @@
+/* Tujuan file: File publik ini menjadi titik masuk atau aset yang digunakan browser untuk fitur vaulty. */
+
 :root{--et-green:#2d8a64;--et-green-dark:#1e6a4b;--et-border:#dce3e0;--et-page:#f7f9f8;--et-text:#35423e;--et-muted:#8a9491;--et-shadow:0 2px 4px rgba(0,0,0,0.05)}
 *{box-sizing:border-box}html,body{margin:0;padding:0;min-height:100%;font-family:'Segoe UI',sans-serif;color:var(--et-text);background:var(--et-page)}
 a{text-decoration:none;color:inherit}

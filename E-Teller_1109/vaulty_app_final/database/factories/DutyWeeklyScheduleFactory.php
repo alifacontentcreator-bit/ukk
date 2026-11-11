@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Factory ini menyediakan data contoh duty weekly schedule factory untuk kebutuhan pengujian atau pembuatan data awal. */
+
 
 namespace Database\Factories;
 

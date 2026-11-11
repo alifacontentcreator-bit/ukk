@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Konfigurasi ini mengatur perilaku komponen logging pada aplikasi Laravel. */
+
 
 use Monolog\Handler\NullHandler;
 use Monolog\Handler\StreamHandler;

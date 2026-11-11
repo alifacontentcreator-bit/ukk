@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman pager, termasuk data dan aksi yang disediakan aplikasi. --}}
 @props(['paginator'])
 
 @if($paginator->hasPages())

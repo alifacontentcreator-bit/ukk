@@ -20,6 +20,7 @@
         TransactionActivityLogger::ACTION_BERHASIL => 'Berhasil',
         default => 'Menunggu',
     };
+    //Fungsi ini menentukan class CSS untuk warna label status.
 
     $badgeStatus = fn ($action) => match ($action) {
         TransactionActivityLogger::ACTION_GAGAL => 'badge-danger',
@@ -27,6 +28,16 @@
         default => 'badge-warn',
     };
 @endphp
+
+<div class="actions section no-print" style="justify-content:flex-end">
+    <a class="btn btn-primary btn-sm"
+       href="{{ route('admin.audit-log.pdf', request()->only('jenis', 'q', 'from', 'to')) }}"
+       target="_blank" rel="noopener"><x-icon name="file" /> Unduh PDF</a>
+    <a class="btn btn-soft btn-sm"
+       href="{{ route('admin.audit-log.excel', request()->only('jenis', 'q', 'from', 'to')) }}">
+        <x-icon name="down" /> Unduh Excel
+    </a>
+</div>
 
 <div class="grid-4">
     <div class="card stat">

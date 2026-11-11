@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman supervisor, termasuk data dan aksi yang disediakan aplikasi. --}}
 @extends('layouts.shell')
 @section('role', 'Supervisor')
 

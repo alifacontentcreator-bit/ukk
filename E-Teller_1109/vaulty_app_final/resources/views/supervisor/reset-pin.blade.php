@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman reset pin, termasuk data dan aksi yang disediakan aplikasi. --}}
 @extends('layouts.supervisor')
 @section('title', 'Validasi Reset PIN')
 @section('page-title', 'Validasi Reset PIN')

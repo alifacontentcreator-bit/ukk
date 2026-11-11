@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman receipt, termasuk data dan aksi yang disediakan aplikasi. --}}
 @extends('layouts.app')
 
 @section('title', 'Bukti Transaksi Digital')
@@ -5,7 +6,7 @@
 @section('page-subtitle', 'Tunjukkan bukti ini bila diperlukan.')
 
 @section('page-actions')
-    <button class="btn btn-primary btn-sm no-print" type="button" onclick="window.print()"><x-icon name="printer" /> Cetak</button>
+    <a class="btn btn-primary btn-sm no-print" href="{{ route('customer.receipt.pdf', $transaction) }}"><x-icon name="file" /> Unduh PDF</a>
     <a class="btn btn-soft btn-sm no-print" href="{{ route('customer.dashboard') }}"><x-icon name="arrow-left" /> Dasbor</a>
 @endsection
 

@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Form Request ini menentukan validasi dan otorisasi masukan untuk alur update profile password request sebelum diproses controller. */
+
 
 namespace App\Http\Requests;
 

@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman laporan, termasuk data dan aksi yang disediakan aplikasi. --}}
 
 @extends('layouts.supervisor')
 
@@ -10,6 +11,16 @@
 @php
     $rp = fn ($n) => 'Rp ' . number_format((float) $n, 0, ',', '.');
 @endphp
+
+<div class="actions section no-print" style="justify-content:flex-end">
+    <a class="btn btn-primary btn-sm"
+       href="{{ route('supervisor.laporan.cetak-pdf', ['tanggal' => request('from') ?: today()->toDateString()]) }}"
+       target="_blank" rel="noopener"><x-icon name="file" /> Rekap Kas PDF</a>
+    <a class="btn btn-soft btn-sm"
+       href="{{ route('supervisor.laporan.cetak-excel', ['tanggal' => request('from') ?: today()->toDateString()]) }}">
+        <x-icon name="down" /> Rekap Kas Excel
+    </a>
+</div>
 
 {{-- FILTER LAPORAN --}}
 <section class="card" style="margin-bottom:20px">
@@ -293,6 +304,18 @@
                        target="_blank"
                        rel="noopener">
                         Cetak rekap
+                    </a>
+
+                    <a class="btn btn-primary"
+                       href="{{ route('supervisor.laporan.pdf', $report->id) }}"
+                       target="_blank"
+                       rel="noopener">
+                        PDF
+                    </a>
+
+                    <a class="btn btn-soft"
+                       href="{{ route('supervisor.laporan.excel', $report->id) }}">
+                        Excel
                     </a>
 
                     @if($report->status === 'submitted')

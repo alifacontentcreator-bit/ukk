@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Konfigurasi ini mengatur perilaku komponen app pada aplikasi Laravel. */
+
 
 return [
 

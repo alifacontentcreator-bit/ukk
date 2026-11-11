@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman user menu, termasuk data dan aksi yang disediakan aplikasi. --}}
 @php($menuUser = auth()->user())
 <div class="et-user-wrap" data-user-menu>
     <button class="et-user" type="button" data-user-menu-toggle

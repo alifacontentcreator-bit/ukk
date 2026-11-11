@@ -1,9 +1,15 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman rekonsiliasi, termasuk data dan aksi yang disediakan aplikasi. --}}
 
 @extends('layouts.supervisor')
 
 @section('title', 'Rekonsiliasi Kas')
 @section('page-title', 'Rekonsiliasi Kas')
 @section('page-subtitle', 'Pantau saldo brankas, penyerahan modal, dan penutupan kas semua teller.')
+
+@section('page-actions')
+    <a class="btn btn-primary btn-sm" href="{{ route('supervisor.rekonsiliasi.pdf', request()->only('tanggal')) }}" target="_blank" rel="noopener"><x-icon name="file" /> Unduh PDF</a>
+    <a class="btn btn-soft btn-sm" href="{{ route('supervisor.rekonsiliasi.excel', request()->only('tanggal')) }}"><x-icon name="down" /> Unduh Excel</a>
+@endsection
 
 @section('content')
 

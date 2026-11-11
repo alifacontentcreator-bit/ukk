@@ -10,6 +10,7 @@ class Account extends Model
     use HasFactory;
 
     protected $fillable = [
+        // 'id', // id diisi otomatis oleh database
         'user_id', 'account_number', 'pin', 'pin_is_default', 'balance', 'product_type', 'qr_token', 'status',
         'pin_attempts', 'pin_locked_until', 'pin_reset_required', 'pin_blocked', 'pin_changed_at',
     ];

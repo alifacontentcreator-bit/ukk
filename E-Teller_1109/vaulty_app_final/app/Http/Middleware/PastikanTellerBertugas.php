@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Middleware ini memeriksa aturan akses atau kondisi permintaan sebelum fitur pastikan teller bertugas diteruskan ke controller. */
+
 
 namespace App\Http\Middleware;
 

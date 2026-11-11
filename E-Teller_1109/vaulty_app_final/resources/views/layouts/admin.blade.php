@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman admin, termasuk data dan aksi yang disediakan aplikasi. --}}
 @extends('layouts.shell')
 @section('role', 'Administrator')
 @section('no-page-head', '1')

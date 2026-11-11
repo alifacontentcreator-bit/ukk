@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman report notification bell, termasuk data dan aksi yang disediakan aplikasi. --}}
 @php
     use App\Models\ReportNotification;
     use Illuminate\Support\Facades\Schema;

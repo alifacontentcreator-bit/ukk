@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: File ini mendukung fitur render auth pada aplikasi. */
+
 // Skrip sementara: merender halaman auth ke HTML statis untuk pemeriksaan visual.
 require __DIR__ . '/vendor/autoload.php';
 

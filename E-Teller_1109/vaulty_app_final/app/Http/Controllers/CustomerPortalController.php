@@ -1,10 +1,18 @@
 <?php
+/* Tujuan file: Controller ini menghubungkan permintaan halaman fitur customer portal controller dengan validasi, proses aplikasi, dan tampilan yang sesuai. */
+
 
 namespace App\Http\Controllers;
 
 use App\Models\Account;
 use App\Models\CustomerNotification;
+use App\Models\StatementRequest;
 use App\Models\Transaction;
+use App\Services\ReportExcelService;
+use App\Services\SlipFormatter;
+use App\Services\SlipPdfService;
+use App\Services\StatementService;
+use DomainException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -45,6 +53,23 @@ class CustomerPortalController extends Controller
     {
         abort_unless($transaction->account->user_id === auth()->id() && $transaction->status === 'approved', 403);
         return view('customer.receipt', compact('transaction'));
+    }
+
+    /**
+     * Bukti transaksi nasabah dalam format PDF (slip hanya tersedia sebagai PDF).
+     */
+    public function receiptPdf(Transaction $transaction, SlipPdfService $pdf)
+    {
+        abort_unless($transaction->account->user_id === auth()->id() && $transaction->status === 'approved', 403);
+
+        $transaction->loadMissing(['account.user', 'teller']);
+        $bytes = $pdf->render(SlipFormatter::detail($transaction));
+
+        return response($bytes, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="slip-'
+                . ($transaction->reference_number ?: $transaction->id) . '.pdf"',
+        ]);
     }
 
     public function qrScanner()
@@ -91,5 +116,95 @@ class CustomerPortalController extends Controller
         $notifications = CustomerNotification::where('user_id', auth()->id())->latest()->paginate(15);
         CustomerNotification::where('user_id', auth()->id())->whereNull('read_at')->update(['read_at' => now()]);
         return view('customer.notifications', compact('notifications'));
+    }
+
+    /**
+     * Halaman mutasi nasabah: daftar permintaan cetak mutasi dan berkas PDF
+     * yang sudah disiapkan Teller.
+     */
+    public function statements()
+    {
+        $account = $this->account();
+
+        $requests = StatementRequest::where('account_id', $account->id)
+            ->latest()
+            ->paginate(10);
+
+        return view('customer.mutasi', compact('account', 'requests'));
+    }
+
+    /** Nasabah mengajukan cetak mutasi dari portal web. */
+    public function requestStatement(Request $request, StatementService $statements)
+    {
+        $data = $request->validate([
+            'period_from' => ['required', 'date_format:Y-m-d'],
+            'period_to' => ['required', 'date_format:Y-m-d'],
+            'reason' => ['nullable', 'string', 'max:500'],
+        ], [
+            'period_from.required' => 'Tanggal awal periode wajib diisi.',
+            'period_to.required' => 'Tanggal akhir periode wajib diisi.',
+            'period_from.date_format' => 'Format tanggal awal harus YYYY-MM-DD.',
+            'period_to.date_format' => 'Format tanggal akhir harus YYYY-MM-DD.',
+        ]);
+
+        $account = $this->account();
+
+        try {
+            $period = $statements->resolvePeriod($data['period_from'], $data['period_to']);
+            $statementRequest = $statements->requestFromCustomer(
+                auth()->user(),
+                $account,
+                $period['from'],
+                $period['to'],
+                $data['reason'] ?? null
+            );
+        } catch (DomainException $exception) {
+            return back()->withErrors(['mutasi' => $exception->getMessage()])->withInput();
+        }
+
+        return back()->with(
+            'success',
+            'Permintaan mutasi periode ' . $statementRequest->periodLabel() . ' (' . $statementRequest->request_code
+                . ') dikirim ke petugas. Anda akan menerima notifikasi saat berkas PDF siap diunduh.'
+        );
+    }
+
+    /** Unduh berkas PDF mutasi milik nasabah yang sedang login. */
+    public function downloadStatement(StatementRequest $statement, StatementService $statements)
+    {
+        $account = $this->account();
+
+        abort_unless(
+            (int) $statement->account_id === (int) $account->id && $statement->isReady(),
+            404
+        );
+
+        $bytes = $statements->pdfContents($statement);
+
+        return response($bytes, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="' . $statement->fileName() . '"',
+        ]);
+    }
+
+    /** Unduh mutasi rekening nasabah dalam format Excel. */
+    public function downloadStatementExcel(
+        StatementRequest $statement,
+        StatementService $statements,
+        ReportExcelService $excel
+    ) {
+        $account = $this->account();
+
+        abort_unless(
+            (int) $statement->account_id === (int) $account->id && $statement->isReady(),
+            404
+        );
+
+        $data = $statements->build($account, $statement->period_from, $statement->period_to);
+
+        return $excel->download(
+            preg_replace('/\.pdf$/', '.xlsx', $statement->fileName()),
+            $statements->excelSheets($data)
+        );
     }
 }

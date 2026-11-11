@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Kelas mail ini menyiapkan isi dan data email untuk pemberitahuan system notification. */
+
 
 namespace App\Mail;
 

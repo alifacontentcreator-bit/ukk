@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Factory ini menyediakan data contoh user factory untuk kebutuhan pengujian atau pembuatan data awal. */
+
 
 namespace Database\Factories;
 

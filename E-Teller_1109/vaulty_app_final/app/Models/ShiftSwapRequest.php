@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Model ini merepresentasikan data shift swap request di basis data serta menjadi tempat definisi atribut dan relasi yang digunakan aplikasi. */
+
 
 namespace App\Models;
 

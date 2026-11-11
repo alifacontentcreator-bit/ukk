@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman transaksi, termasuk data dan aksi yang disediakan aplikasi. --}}
 @extends('layouts.teller')
 
 @section('title', 'Transaksi Teller')
@@ -57,6 +58,10 @@
                         <div class="kv"><span class="k">No. rekening</span><span class="v mono">{{ $nasabah->account_number }}</span></div>
                         <div class="kv"><span class="k">Saldo terkini</span><span class="v">Rp {{ number_format($nasabah->balance, 0, ',', '.') }}</span></div>
                         <div class="kv"><span class="k">Jenis tabungan</span><span class="v">{{ $nasabah->product_type === 'tabungan_karyawan' ? 'Guru/Karyawan' : 'Siswa' }}</span></div>
+                        <a class="btn btn-soft btn-sm" style="width:100%;margin-top:8px;justify-content:center"
+                           href="{{ route('teller.mutasi', ['account_number' => $nasabah->account_number]) }}">
+                            <x-icon name="receipt" /> Cetak Mutasi
+                        </a>
                     </div>
                 </div>
             @else
@@ -285,9 +290,23 @@ document.addEventListener('DOMContentLoaded', function() {
                     printLink.className = 'more';
                     printLink.style.display = 'inline-block';
                     printLink.style.marginTop = '4px';
+                    printLink.style.marginRight = '10px';
                     printLink.href = result.slip_url;
-                    printLink.textContent = 'Cetak slip';
+                    printLink.textContent = 'Lihat slip';
                     approvalStatus.append(title, reference, printLink);
+
+                    if (result.slip_pdf_url) {
+                        const pdfLink = document.createElement('a');
+                        pdfLink.className = 'more';
+                        pdfLink.style.display = 'inline-block';
+                        pdfLink.style.marginTop = '4px';
+                        pdfLink.href = result.slip_pdf_url;
+                        pdfLink.target = '_blank';
+                        pdfLink.rel = 'noopener';
+                        pdfLink.textContent = 'Unduh slip PDF';
+                        approvalStatus.append(pdfLink);
+                    }
+
                     return true;
                 }
 

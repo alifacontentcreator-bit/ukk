@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman icon, termasuk data dan aksi yang disediakan aplikasi. --}}
 @props(['name'])
 @php
     $icons = [

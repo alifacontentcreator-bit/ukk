@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman 419, termasuk data dan aksi yang disediakan aplikasi. --}}
 @extends('layouts.auth')
 
 @section('title', 'Sesi Berakhir')

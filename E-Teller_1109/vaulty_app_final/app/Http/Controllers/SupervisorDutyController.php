@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Controller ini menghubungkan permintaan halaman fitur supervisor duty controller dengan validasi, proses aplikasi, dan tampilan yang sesuai. */
+
 
 namespace App\Http\Controllers;
 
@@ -7,9 +9,11 @@ use App\Models\DutyShift;
 use App\Models\DutyWeeklySchedule;
 use App\Models\User;
 use App\Services\ExcelExport;
+use App\Services\ReportPdfService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Sisi SUPERVISOR: absensi petugas, jadwal jaga & shift, dan data petugas.
@@ -242,6 +246,63 @@ class SupervisorDutyController extends Controller
             $barisExcel,
             'Absensi'
         );
+    }
+
+    /**
+     * Unduh data absensi petugas (sesuai filter aktif) sebagai PDF.
+     */
+    public function attendancePdf(Request $request, ReportPdfService $pdf): Response
+    {
+        [$queryAbsensi, $tanggalAwal, $tanggalAkhir] = $this->attendanceQuery($request);
+
+        $rows = $queryAbsensi->orderBy('duty_date')
+            ->orderBy('check_in_at')
+            ->limit(5000)
+            ->get()
+            ->map(fn ($catatan) => [
+                $catatan->user->name ?? '-',
+                $catatan->user->kelas ?? '-',
+                $catatan->duty_date?->format('d/m/Y'),
+                $catatan->shift ? $catatan->shift->name : 'Di luar jadwal',
+                $catatan->check_in_at ? $catatan->check_in_at->format('H:i') : '-',
+                $catatan->check_out_at ? $catatan->check_out_at->format('H:i') : '-',
+                $catatan->statusLabel() . ($catatan->isLate() ? ' (terlambat)' : ''),
+                $catatan->note ?? '-',
+            ])
+            ->all();
+
+        $periode = ($tanggalAwal ? \Carbon\Carbon::parse($tanggalAwal)->format('d/m/Y') : 'Semua')
+            . ' s/d '
+            . ($tanggalAkhir ? \Carbon\Carbon::parse($tanggalAkhir)->format('d/m/Y') : 'Semua');
+
+        $document = [
+            'title' => 'LAPORAN ABSENSI PETUGAS',
+            'subtitle' => 'LKM MITRA SISWA ABADI - BANK MINI SMK NEGERI 1 BANTUL',
+            'meta' => [
+                ['Periode', $periode],
+                ['Jumlah baris', (string) count($rows)],
+                ['Dicetak', now()->format('d/m/Y H:i') . ' WIB'],
+                ['Petugas', auth()->user()?->name ?? '-'],
+            ],
+            'sections' => [[
+                'heading' => 'Riwayat Kehadiran',
+                'headers' => ['Nama', 'Kelas', 'Tanggal', 'Shift', 'Masuk', 'Pulang', 'Status', 'Keterangan'],
+                'aligns' => ['left', 'left', 'left', 'left', 'center', 'center', 'left', 'left'],
+                'widths' => [1.5, 0.9, 1, 1, 0.7, 0.7, 1.3, 1.6],
+                'rows' => $rows,
+            ]],
+            'notes' => [
+                'Status kehadiran mengikuti jadwal jaga dan dapat diubah Supervisor melalui halaman Absensi Jaga.',
+            ],
+            'printed_by' => auth()->user()?->name,
+            'orientation' => 'landscape',
+        ];
+
+        return response($pdf->render($document), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="absensi-petugas-'
+                . ($tanggalAwal ?: 'semua') . '-sd-' . ($tanggalAkhir ?: 'semua') . '.pdf"',
+        ]);
     }
 
     // ===================== JADWAL & SHIFT =====================

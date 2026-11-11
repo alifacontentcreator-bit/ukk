@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman notification text, termasuk data dan aksi yang disediakan aplikasi. --}}
 {{ $appName ?: config('app.name') }}
 {{ $appFooter }}
 ----------------------------------------

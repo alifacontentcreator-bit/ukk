@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman notifikasi, termasuk data dan aksi yang disediakan aplikasi. --}}
 @extends('layouts.supervisor')
 
 {{-- HALAMAN INI UNTUK: kotak masuk notifikasi Supervisor (ikon lonceng di kanan atas). --}}

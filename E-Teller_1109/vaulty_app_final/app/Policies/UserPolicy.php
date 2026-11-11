@@ -1,4 +1,6 @@
 <?php
+/* Tujuan file: Policy ini menentukan hak akses pengguna terhadap operasi fitur user policy. */
+
 
 namespace App\Policies;
 

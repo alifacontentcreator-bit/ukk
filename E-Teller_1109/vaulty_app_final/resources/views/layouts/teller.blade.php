@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman teller, termasuk data dan aksi yang disediakan aplikasi. --}}
 @extends('layouts.shell')
 @section('role', 'Teller')
 
@@ -10,6 +11,7 @@
             <a class="nav-item {{ request()->routeIs('teller.dashboard') ? 'active' : '' }}" href="{{ route('teller.dashboard') }}" title="Dashboard"><x-icon name="home" /><span>Dashboard</span></a>
             <div class="nav-group">Layanan</div>
             <a class="nav-item {{ request()->routeIs('teller.transaksi*') ? 'active' : '' }}" href="{{ route('teller.transaksi.create') }}" title="Transaksi Nasabah"><x-icon name="plus-circle" /><span>Transaksi Nasabah</span></a>
+            <a class="nav-item {{ request()->routeIs('teller.mutasi*') ? 'active' : '' }}" href="{{ route('teller.mutasi') }}" title="Cetak Mutasi"><x-icon name="receipt" /><span>Cetak Mutasi</span></a>
             <div class="nav-group">Jaga</div>
             <a class="nav-item {{ request()->routeIs('teller.absensi*') ? 'active' : '' }}" href="{{ route('teller.absensi') }}" title="Absensi Jaga"><x-icon name="check" /><span>Absensi Jaga</span></a>
             <div class="nav-group">Riwayat &amp; Laporan</div>

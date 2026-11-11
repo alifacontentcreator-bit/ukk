@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman show, termasuk data dan aksi yang disediakan aplikasi. --}}
 @extends($layout)
 
 @section('title', 'Profil Saya')

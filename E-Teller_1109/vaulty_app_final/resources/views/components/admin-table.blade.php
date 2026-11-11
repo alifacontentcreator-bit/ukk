@@ -1,3 +1,4 @@
+{{-- Tujuan file: Template Blade ini menyajikan antarmuka halaman admin table, termasuk data dan aksi yang disediakan aplikasi. --}}
 @props([
     'title' => null,
     'description' => null,
