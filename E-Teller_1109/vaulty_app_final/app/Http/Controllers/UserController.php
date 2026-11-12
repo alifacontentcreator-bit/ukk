@@ -9,10 +9,8 @@ use App\Models\Account;
 use App\Services\AccountNumberGenerator;
 use App\Services\ExcelExport;
 use Illuminate\Http\Request;
-use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -145,7 +143,7 @@ class UserController extends Controller
                         'username' => $nis,
                         'password' => Hash::make(Str::random(64)),
                         'role' => 'customer',
-                        'status' => 'active',
+                        'status' => 'inactive',
                         'nis' => $nis,
                         'kelas' => $classAttrs['kelas'],
                         'jurusan' => $classAttrs['jurusan'],
@@ -155,7 +153,17 @@ class UserController extends Controller
                         'email' => $email,
                     ]);
 
-                    $user->forceFill(['must_change_password' => true])->save();
+                    /*
+                     * Akun nasabah baru TIDAK langsung aktif. Statusnya nonaktif
+                     * sampai nasabah menyelesaikan aktivasi di aplikasi mobile,
+                     * dengan tenggat aktivasi 60 hari sejak akun dibuat. Bila
+                     * tenggat terlewat, akun tetap nonaktif (tidak dihapus) dan
+                     * masih dapat diaktivasi.
+                     */
+                    $user->forceFill([
+                        'must_change_password' => true,
+                        'activation_deadline' => now()->addDays(User::ACTIVATION_WINDOW_DAYS),
+                    ])->save();
 
                     Account::create([
                         'user_id' => $user->id,
@@ -409,7 +417,7 @@ class UserController extends Controller
                     'username' => $username,
                     'password' => Hash::make($temporaryPassword),
                     'role' => 'customer',
-                    'status' => 'active',
+                    'status' => 'inactive',
 
                     'nis' => $request->nis,
                     'kelas' => $classAttrs['kelas'],
@@ -423,10 +431,14 @@ class UserController extends Controller
                 ]);
 
                 /*
-                 * Tandai akun belum diaktivasi.
+                 * Akun belum diaktivasi: status nonaktif sampai nasabah
+                 * menyelesaikan aktivasi di aplikasi mobile. Tenggat aktivasi
+                 * 60 hari sejak akun dibuat; lewat tenggat akun tetap
+                 * nonaktif (tidak dihapus) dan masih dapat diaktivasi.
                  */
                 $user->forceFill([
                     'must_change_password' => true,
+                    'activation_deadline' => now()->addDays(User::ACTIVATION_WINDOW_DAYS),
                 ])->save();
 
                 /*
@@ -461,7 +473,9 @@ class UserController extends Controller
                         "Nasabah siswa berhasil ditambahkan. " .
                         "No. rekening: {$noRekening}. " .
                         "Username: {$username}. " .
-                        "Nasabah dapat meminta kode aktivasi dari aplikasi. Kode dikirim ke email terdaftar dan berlaku selama 3 menit."
+                        "Akun berstatus NONAKTIF sampai nasabah menyelesaikan aktivasi di aplikasi mobile. " .
+                        "Kode aktivasi dikirim ke email terdaftar dan berlaku selama 3 menit; " .
+                        "tenggat aktivasi 60 hari sejak akun dibuat."
                     );
             }
 
@@ -490,7 +504,7 @@ class UserController extends Controller
                     'username' => $username,
                     'password' => Hash::make($temporaryPassword),
                     'role' => 'customer',
-                    'status' => 'active',
+                    'status' => 'inactive',
 
                     'nip' => $request->nip,
                     'jabatan' => $request->jabatan,
@@ -500,10 +514,13 @@ class UserController extends Controller
                 ]);
 
                 /*
-                 * Akun belum boleh login sebelum aktivasi.
+                 * Akun belum boleh login sebelum aktivasi: status nonaktif
+                 * sampai nasabah menyelesaikan aktivasi di aplikasi mobile,
+                 * dengan tenggat aktivasi 60 hari sejak akun dibuat.
                  */
                 $user->forceFill([
                     'must_change_password' => true,
+                    'activation_deadline' => now()->addDays(User::ACTIVATION_WINDOW_DAYS),
                 ])->save();
 
                 /*
@@ -537,7 +554,9 @@ class UserController extends Controller
                         "Nasabah guru/karyawan berhasil ditambahkan. " .
                         "No. rekening: {$noRekening}. " .
                         "Username: {$username}. " .
-                        "Nasabah dapat meminta kode aktivasi dari aplikasi. Kode dikirim ke email terdaftar dan berlaku selama 3 menit."
+                        "Akun berstatus NONAKTIF sampai nasabah menyelesaikan aktivasi di aplikasi mobile. " .
+                        "Kode aktivasi dikirim ke email terdaftar dan berlaku selama 3 menit; " .
+                        "tenggat aktivasi 60 hari sejak akun dibuat."
                     );
             }
 
@@ -628,6 +647,11 @@ class UserController extends Controller
             'role' => [
                 'required',
                 'in:admin,supervisor,teller,customer',
+            ],
+
+            'status' => [
+                'nullable',
+                'in:active,inactive,blocked',
             ],
 
             'photo' => [
@@ -755,6 +779,52 @@ class UserController extends Controller
                 ]);
         }
 
+        /*
+         * Bila peran diubah dari nasabah menjadi petugas (admin/teller/
+         * supervisor), akun tidak lagi memakai aktivasi aplikasi mobile:
+         * kebutuhan aktivasi dihapus dan akun langsung aktif agar bisa login
+         * di web. Tanpa ini akun petugas akan tetap berstatus nonaktif.
+         */
+        $promosiPetugas = $data['role'] !== 'customer' && $user->isAwaitingActivation();
+
+        if ($promosiPetugas) {
+            $user->forceFill([
+                'must_change_password' => false,
+                'password_changed_at' => now(),
+                'activation_deadline' => null,
+                'status' => 'active',
+            ]);
+        }
+
+        /*
+         * Status dari form hanya diterapkan bila memang berbeda. Akun sendiri
+         * tidak boleh dinonaktifkan dari form ini, dan akun nasabah yang belum
+         * diaktivasi tidak boleh diaktifkan manual: status aktifnya diberikan
+         * otomatis saat aktivasi aplikasi mobile berhasil.
+         */
+        $statusBaru = $request->input('status');
+
+        if (
+            !$promosiPetugas
+            && in_array($statusBaru, ['active', 'inactive', 'blocked'], true)
+            && $statusBaru !== $user->status
+        ) {
+            if ($user->id === auth()->id() && $statusBaru !== 'active') {
+                return back()->withInput()->withErrors([
+                    'status' => 'Anda tidak dapat menonaktifkan akun Anda sendiri.',
+                ]);
+            }
+
+            if ($data['role'] === 'customer' && $user->isAwaitingActivation() && $statusBaru === 'active') {
+                return back()->withInput()->withErrors([
+                    'status' => "Status aktif akun nasabah {$user->name} diberikan otomatis "
+                        . 'setelah nasabah menyelesaikan aktivasi di aplikasi mobile.',
+                ]);
+            }
+
+            $data['status'] = $statusBaru;
+        }
+
         $user->update($data);
 
         return redirect()
@@ -769,6 +839,10 @@ class UserController extends Controller
 
     /**
      * Nonaktifkan atau aktifkan kembali pengguna.
+     *
+     * Akun NASABAH TIDAK PERNAH DIHAPUS. Akun nasabah baru berstatus nonaktif
+     * sampai nasabah menyelesaikan aktivasi di aplikasi mobile; status aktif
+     * diberikan oleh sistem saat aktivasi berhasil, bukan oleh admin.
      */
     public function toggleStatus(User $user)
     {
@@ -780,10 +854,37 @@ class UserController extends Controller
             ]);
         }
 
-        // Status apa pun yang bukan "active" (mis. blocked/inactive) dianggap nonaktif.
-        $user->status = $user->status === 'active' ? 'blocked' : 'active';
+        /*
+         * Akun nasabah yang belum diaktivasi hanya boleh dibuka blokirnya.
+         * Mengaktifkannya secara manual akan membuat status "Aktif" padahal
+         * nasabah belum pernah membuat password/PIN di aplikasi mobile.
+         */
+        if ($user->isAwaitingActivation() && $user->status !== 'blocked') {
+            return back()->withErrors([
+                'error' => "Akun nasabah {$user->name} masih menunggu aktivasi di aplikasi mobile. "
+                    . 'Status aktif diberikan otomatis setelah nasabah menyelesaikan aktivasi.',
+            ]);
+        }
+
+        if ($user->status === 'active') {
+            // Status apa pun selain "active" (mis. blocked/inactive) dianggap nonaktif.
+            $user->status = 'blocked';
+        } elseif ($user->isAwaitingActivation()) {
+            // Buka blokir akun yang belum diaktivasi: kembali menunggu aktivasi.
+            $user->status = 'inactive';
+        } else {
+            $user->status = 'active';
+        }
 
         $user->save();
+
+        if ($user->isAwaitingActivation()) {
+            return back()->with(
+                'success',
+                "Blokir akun {$user->name} berhasil dibuka. Akun tetap nonaktif sampai "
+                    . 'nasabah menyelesaikan aktivasi di aplikasi mobile.'
+            );
+        }
 
         $keterangan = $user->status === 'active'
             ? 'DIAKTIFKAN KEMBALI'
@@ -793,89 +894,5 @@ class UserController extends Controller
             'success',
             "Status akun {$user->name} berhasil {$keterangan}."
         );
-    }
-
-    /**
-     * Menghapus pengguna staf, atau menonaktifkan akun nasabah.
-     */
-    public function destroy(User $user)
-    {
-        $this->authorize('manage', User::class);
-
-        if ($user->id === auth()->id()) {
-            return back()->withErrors([
-                'error' => 'Anda tidak bisa menghapus akun Anda sendiri.',
-            ]);
-        }
-
-        /*
-         * PENGHAPUSAN BERLAKU UNTUK SEMUA ROLE, TERMASUK NASABAH.
-         * Rekening nasabah memakai foreign key cascade sehingga ikut terhapus
-         * bersama akunnya, tetapi transaksi, laporan harian, dan koreksi memakai
-         * RESTRICT agar jejak audit tidak ikut hilang. Karena itu pemeriksaan
-         * dilakukan lebih awal supaya admin menerima pesan yang bisa dibaca,
-         * bukan error SQL 1451.
-         */
-        $blockers = $user->deletionBlockers();
-
-        if ($blockers !== []) {
-            return back()->withErrors([
-                'error' => sprintf(
-                    'Pengguna %s tidak dapat dihapus karena masih memiliki %s. '
-                    . 'Jejak transaksi dan audit wajib dipertahankan; gunakan tombol %s bila akun ini sudah tidak dipakai.',
-                    $user->name,
-                    implode(', ', $blockers),
-                    $user->role === 'customer' ? 'nonaktifkan' : 'blokir'
-                ),
-            ]);
-        }
-
-        try {
-            DB::transaction(function () use ($user) {
-                /*
-                 * Token login aplikasi mobile (Sanctum) tidak memakai foreign key,
-                 * jadi dicabut manual agar sesi di perangkat nasabah/petugas tidak
-                 * tertinggal setelah akunnya dihapus.
-                 */
-                if (Schema::hasTable('personal_access_tokens')) {
-                    DB::table('personal_access_tokens')
-                        ->where('tokenable_type', $user->getMorphClass())
-                        ->where('tokenable_id', $user->getKey())
-                        ->delete();
-                }
-
-                $user->delete();
-            });
-        } catch (QueryException $e) {
-            /*
-             * Jaring pengaman bila masih ada tabel lain yang menunjuk ke user
-             * ini (mis. data baru yang belum terdaftar di deletionBlockers()).
-             */
-            if (!$this->isForeignKeyViolation($e)) {
-                throw $e;
-            }
-
-            return back()->withErrors([
-                'error' => "Pengguna {$user->name} tidak dapat dihapus karena datanya masih terhubung dengan transaksi, laporan, atau riwayat lain. Gunakan tombol blokir agar data tersebut tetap utuh.",
-            ]);
-        }
-
-        return back()->with(
-            'success',
-            $user->role === 'customer'
-                ? "Akun nasabah {$user->name} berhasil dihapus permanen beserta rekening, notifikasi, dan data QR-nya."
-                : "Pengguna {$user->name} berhasil dihapus secara permanen."
-        );
-    }
-
-    /**
-     * Apakah exception berasal dari pelanggaran foreign key (SQLSTATE 23000).
-     */
-    private function isForeignKeyViolation(QueryException $e): bool
-    {
-        $driverCode = $e->errorInfo[1] ?? null;
-
-        return in_array($driverCode, [1451, 1452], true)
-            || str_contains(strtolower($e->getMessage()), 'foreign key constraint');
     }
 }

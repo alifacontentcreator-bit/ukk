@@ -180,7 +180,9 @@ class TransactionController extends Controller
             }
 
             /*
-             * Memastikan rekening dan nasabah aktif.
+             * Memastikan rekening dan nasabah aktif. Nasabah yang baru dibuat
+             * admin masih NONAKTIF sampai menyelesaikan aktivasi di aplikasi
+             * mobile, jadi transaksi ditolak dengan pesan yang sesuai.
              */
             if (
                 $account->status !== 'active' ||
@@ -188,7 +190,9 @@ class TransactionController extends Controller
                 $account->user->status !== 'active'
             ) {
                 throw new DomainException(
-                    'Rekening nasabah sedang tidak aktif atau diblokir. Transaksi ditolak.'
+                    $account->user?->isAwaitingActivation()
+                        ? 'Akun nasabah belum diaktivasi di aplikasi mobile sehingga masih nonaktif. Transaksi ditolak.'
+                        : 'Rekening nasabah sedang tidak aktif atau diblokir. Transaksi ditolak.'
                 );
             }
 

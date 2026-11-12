@@ -13,8 +13,6 @@ use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -35,6 +33,9 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
 
+    /** Jendela aktivasi akun nasabah baru (hari), dihitung sejak akun dibuat. */
+    public const ACTIVATION_WINDOW_DAYS = 60;
+
     /**
      * Get the attributes that should be cast.
      *
@@ -47,6 +48,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'must_change_password' => 'boolean',
             'password_changed_at' => 'datetime',
+            'activation_deadline' => 'datetime',
         ];
     }
 
@@ -61,73 +63,59 @@ class User extends Authenticatable
     }
 
     /**
-     * Data operasional yang membuat akun tidak boleh dihapus permanen.
-     *
-     * Foreign key pada tabel transaksi, laporan harian, dan koreksi sengaja
-     * memakai RESTRICT (bukan cascade) agar jejak audit tidak ikut terhapus.
-     * Karena itu penghapusan harus ditolak lebih awal dengan pesan yang bisa
-     * dibaca admin, bukan dibiarkan gagal dengan error SQL 1451.
-     *
-     * @return array<int, string>
+     * Akun nasabah baru dibuat berstatus NONAKTIF dan baru menjadi aktif
+     * setelah nasabah menyelesaikan aktivasi di aplikasi mobile. Selama
+     * must_change_password masih true, aktivasi belum pernah dilakukan.
      */
-    public function deletionBlockers(): array
+    public function isAwaitingActivation(): bool
     {
-        $blockers = [];
-
-        if ($this->hasAccountTransactionHistory()) {
-            $blockers[] = 'riwayat transaksi rekening';
-        }
-
-        $references = [
-            ['transactions', ['user_id'], 'transaksi yang dilayani sebagai teller'],
-            ['daily_reports', ['teller_id', 'approved_by', 'transferred_by', 'reopened_by'], 'laporan harian kas'],
-            ['transaction_corrections', ['teller_id', 'supervisor_id'], 'pengajuan koreksi transaksi'],
-            ['customer_transaction_approvals', ['teller_id'], 'permintaan persetujuan transaksi nasabah'],
-            ['cash_transfers', ['teller_id', 'created_by', 'confirmed_by'], 'transfer kas antar petugas'],
-            ['daily_report_reopen_logs', ['supervisor_id'], 'log pembukaan ulang laporan harian'],
-        ];
-
-        foreach ($references as [$table, $columns, $label]) {
-            if ($this->hasReferenceIn($table, $columns)) {
-                $blockers[] = $label;
-            }
-        }
-
-        return $blockers;
+        return $this->role === 'customer' && (bool) $this->must_change_password;
     }
 
     /**
-     * Apakah rekening milik pengguna ini sudah pernah dipakai bertransaksi.
+     * Tenggat aktivasi (60 hari) sudah lewat.
+     *
+     * Akun TIDAK dihapus dan TIDAK dikunci permanen: statusnya tetap nonaktif
+     * selama belum ada aktivasi, lalu menjadi aktif begitu nasabah
+     * menyelesaikan aktivasi di aplikasi mobile.
      */
-    private function hasAccountTransactionHistory(): bool
+    public function activationDeadlinePassed(): bool
     {
-        if (!Schema::hasTable('accounts') || !Schema::hasTable('transactions')) {
-            return false;
-        }
-
-        return DB::table('accounts')
-            ->join('transactions', 'transactions.account_id', '=', 'accounts.id')
-            ->where('accounts.user_id', $this->getKey())
-            ->exists();
+        return $this->isAwaitingActivation()
+            && $this->activation_deadline !== null
+            && $this->activation_deadline->isPast();
     }
 
     /**
-     * Apakah salah satu kolom pada tabel terkait masih menunjuk ke pengguna ini.
-     *
-     * @param  array<int, string>  $columns
+     * Sisa hari aktivasi. Null bila akun tidak sedang menunggu aktivasi.
      */
-    private function hasReferenceIn(string $table, array $columns): bool
+    public function activationDaysLeft(): ?int
     {
-        if (!Schema::hasTable($table)) {
-            return false;
+        if (!$this->isAwaitingActivation() || $this->activation_deadline === null) {
+            return null;
         }
 
-        return DB::table($table)
-            ->where(function ($query) use ($columns) {
-                foreach ($columns as $column) {
-                    $query->orWhere($column, $this->getKey());
-                }
-            })
-            ->exists();
+        $today = now()->startOfDay();
+        $deadline = $this->activation_deadline->copy()->startOfDay();
+
+        if ($deadline->lessThan($today)) {
+            return 0;
+        }
+
+        return (int) $today->diffInDays($deadline);
+    }
+
+    /**
+     * Label status yang ditampilkan pada halaman Manajemen Pengguna.
+     */
+    public function statusLabel(): string
+    {
+        if ($this->isAwaitingActivation() && $this->status !== 'blocked') {
+            return $this->activationDeadlinePassed()
+                ? 'Nonaktif (tenggat aktivasi berakhir)'
+                : 'Menunggu aktivasi';
+        }
+
+        return $this->status === 'active' ? 'Aktif' : 'Nonaktif';
     }
 }

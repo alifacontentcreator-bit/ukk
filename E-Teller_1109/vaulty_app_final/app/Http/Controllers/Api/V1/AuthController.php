@@ -99,7 +99,12 @@ class AuthController extends Controller
                 ], 409);
             }
 
-            if ($user->status !== 'active') {
+            /*
+             * Akun nasabah baru berstatus NONAKTIF sampai aktivasi selesai.
+             * Hanya status "blocked" (diblokir admin) yang menolak permintaan
+             * kode; status "inactive" justru sedang menunggu aktivasi ini.
+             */
+            if ($user->status === 'blocked') {
                 return response()->json([
                     'message' => 'Akun Anda sedang tidak aktif. Hubungi Administrator.',
                     'code' => 'ACCOUNT_INACTIVE',
@@ -540,7 +545,11 @@ class AuthController extends Controller
                 ], 409);
             }
 
-            if ($user->status !== 'active') {
+            /*
+             * Akun nasabah baru berstatus NONAKTIF sampai aktivasi selesai.
+             * Hanya status "blocked" (diblokir admin) yang menolak aktivasi.
+             */
+            if ($user->status === 'blocked') {
                 return response()->json([
                     'message' => 'Akun Anda sedang tidak aktif. Hubungi Administrator.',
                     'code' => 'ACCOUNT_INACTIVE',
@@ -597,10 +606,17 @@ class AuthController extends Controller
 
             // Simpan password baru.
             // Model User menggunakan cast password => hashed.
+            /*
+             * Aktivasi berhasil: akun berubah dari NONAKTIF menjadi AKTIF dan
+             * tenggat aktivasi dihapus. Ini satu-satunya jalur yang boleh
+             * mengaktifkan akun nasabah baru.
+             */
             $user->forceFill([
                 'password' => $data['password'],
                 'must_change_password' => false,
                 'password_changed_at' => now(),
+                'activation_deadline' => null,
+                'status' => 'active',
             ])->save();
 
             // Tandai kode aktivasi sebagai sudah digunakan.

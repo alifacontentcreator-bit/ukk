@@ -76,7 +76,7 @@
         <div class="section-head">
             <div>
                 <div class="section-title">Daftar Pengguna</div>
-                <div class="section-sub">{{ $users->count() }} akun &middot; admin, supervisor, teller, dan nasabah. Setiap baris memiliki tombol ubah, blokir/nonaktifkan, dan hapus. Akun yang sudah memiliki riwayat transaksi atau laporan tidak dapat dihapus permanen &mdash; blokir/nonaktifkan saja agar jejak audit tetap tersimpan.</div>
+                <div class="section-sub">{{ $users->count() }} akun &middot; admin, supervisor, teller, dan nasabah. Akun <strong>tidak dapat dihapus</strong>; setiap baris hanya memiliki tombol ubah dan blokir/nonaktifkan agar jejak audit tetap tersimpan. Nasabah yang baru ditambahkan berstatus <strong>nonaktif</strong> sampai menyelesaikan aktivasi di aplikasi mobile (tenggat aktivasi 60 hari &mdash; lewat tenggat akun tetap nonaktif, tidak dihapus).</div>
             </div>
             <span class="badge badge-outline">{{ $users->count() }} akun</span>
         </div>
@@ -96,9 +96,10 @@
                 <tbody>
                     @forelse($users as $user)
                         @php($pinBlocked = (bool) $user->account?->pin_blocked)
+                        @php($menungguAktivasi = $user->isAwaitingActivation())
                         @php($labelAksi = $user->status === 'active'
                             ? ($user->role === 'customer' ? 'Nonaktifkan' : 'Blokir')
-                            : ($user->role === 'customer' ? 'Aktifkan kembali' : 'Buka blokir'))
+                            : ($user->role === 'customer' && !$menungguAktivasi ? 'Aktifkan kembali' : 'Buka blokir'))
                         <tr @class(['is-blocked' => $user->status !== 'active' || $pinBlocked])>
                             <td class="nw muted">{{ str_pad($user->id, 3, '0', STR_PAD_LEFT) }}</td>
                             <td class="nw">{{ $user->kelas ?: '-' }}</td>
@@ -124,9 +125,26 @@
                                 </span>
                             </td>
                             <td>
-                                <span class="badge {{ $user->status === 'active' && !$pinBlocked ? 'badge-ok' : 'badge-danger' }}">
-                                    {{ $user->status !== 'active' ? 'Nonaktif' : ($pinBlocked ? 'Blokir (PIN)' : 'Aktif') }}
-                                </span>
+                                @if($menungguAktivasi && $user->status !== 'blocked')
+                                    {{-- Akun nasabah baru: nonaktif sampai aktivasi di aplikasi mobile. --}}
+                                    <span class="badge {{ $user->activationDeadlinePassed() ? 'badge-danger' : 'badge-warn' }}">
+                                        {{ $user->statusLabel() }}
+                                    </span>
+                                    @if($user->activation_deadline)
+                                        <span class="sub" style="display:block;font-size:11px;margin-top:2px">
+                                            @if($user->activationDeadlinePassed())
+                                                Tenggat berakhir {{ $user->activation_deadline->format('d/m/Y') }}
+                                            @else
+                                                Tenggat {{ $user->activation_deadline->format('d/m/Y') }}
+                                                ({{ $user->activationDaysLeft() }} hari lagi)
+                                            @endif
+                                        </span>
+                                    @endif
+                                @else
+                                    <span class="badge {{ $user->status === 'active' && !$pinBlocked ? 'badge-ok' : 'badge-danger' }}">
+                                        {{ $user->status !== 'active' ? 'Nonaktif' : ($pinBlocked ? 'Blokir (PIN)' : 'Aktif') }}
+                                    </span>
+                                @endif
                             </td>
                             <td>
                                 <div class="actions end">
@@ -134,6 +152,10 @@
                                     @if($user->id !== auth()->id())
                                         @if($pinBlocked && $user->status === 'active')
                                             <a class="icon-btn" href="{{ route('admin.reset-pin') }}" title="Diblokir karena PIN salah 3x. Setujui pengajuan buka blokir + reset PIN di menu Reset PIN." aria-label="Diblokir karena PIN salah 3x. Buka menu Reset PIN."><x-icon name="lock" /></a>
+                                        @elseif($menungguAktivasi && $user->status !== 'blocked')
+                                            {{-- Akun nasabah baru hanya bisa aktif lewat aktivasi di aplikasi
+                                                 mobile, jadi admin tidak diberi tombol aktifkan manual. --}}
+                                            <span class="muted" style="font-size:11px" title="Status aktif diberikan otomatis setelah nasabah menyelesaikan aktivasi di aplikasi mobile.">menunggu aktivasi</span>
                                         @else
                                             <form method="POST" action="{{ route('admin.users.toggle-status', $user) }}" onsubmit="return confirm('Anda yakin ingin {{ strtolower($labelAksi) }} akun {{ $user->name }}?')">
                                                 @csrf
@@ -144,17 +166,8 @@
                                                 </button>
                                             </form>
                                         @endif
-                                        @php($konfirmasiHapus = $user->role === 'customer'
-                                            ? 'Hapus akun nasabah ' . $user->name . '? Bila akun ini belum memiliki riwayat transaksi, akun beserta rekeningnya dihapus permanen. Bila sudah ada riwayat, sistem akan menolak agar jejak audit tetap tersimpan (gunakan tombol nonaktifkan).'
-                                            : 'Hapus permanen akun ' . $user->name . '? Tindakan ini tidak bisa dibatalkan. Akun yang memiliki riwayat transaksi atau laporan tidak dapat dihapus.')
-                                        {{-- Tombol hapus tampil untuk SEMUA baris (ketentuan kolom Aksi:
-                                             ubah, blokir, hapus). Server tetap menolak penghapusan akun
-                                             yang sudah memiliki riwayat transaksi/laporan. --}}
-                                        <form method="POST" action="{{ route('admin.users.destroy', $user) }}" onsubmit="return confirm('{{ $konfirmasiHapus }}')">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button class="icon-btn is-danger" type="submit" title="Hapus {{ $user->name }}" aria-label="Hapus {{ $user->name }}"><x-icon name="trash" /></button>
-                                        </form>
+                                        {{-- Akun TIDAK dapat dihapus (admin, supervisor, teller, dan nasabah)
+                                             agar riwayat transaksi serta jejak audit tetap utuh. --}}
                                     @else
                                         <span class="muted" style="font-size:11px">akun Anda</span>
                                     @endif

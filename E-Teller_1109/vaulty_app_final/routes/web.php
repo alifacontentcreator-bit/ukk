@@ -221,8 +221,12 @@ Route::middleware('auth')->group(function () {
             Route::any('/users/{user}/toggle-status', [UserController::class, 'toggleStatus'])
                 ->name('users.toggle-status');
 
-            Route::delete('/users/{user}', [UserController::class, 'destroy'])
-                ->name('users.destroy');
+            /*
+             * Tidak ada route penghapusan pengguna.
+             * Akun admin, supervisor, teller, dan nasabah TIDAK BOLEH dihapus
+             * agar riwayat transaksi/audit tetap utuh. Gunakan tombol
+             * blokir/nonaktifkan pada halaman Manajemen Pengguna.
+             */
 
 
             // Master Rekening

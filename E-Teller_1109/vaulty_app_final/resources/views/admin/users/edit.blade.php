@@ -13,14 +13,39 @@
         </div>
     </div>
 
+    @php($menungguAktivasi = $user->isAwaitingActivation())
+
     <section class="card" style="max-width:820px">
         <div class="section-head">
             <div>
                 <div class="section-title">Formulir Ubah Pengguna</div>
-                <div class="section-sub">Perbarui identitas, hak akses, dan status pengguna.</div>
+                <div class="section-sub">Perbarui identitas, hak akses, dan status pengguna. Akun tidak dapat dihapus.</div>
             </div>
-            <span class="badge {{ $user->status === 'active' && !($user->account?->pin_blocked) ? 'badge-ok' : 'badge-danger' }}">{{ $user->status !== 'active' ? 'Diblokir' : ($user->account?->pin_blocked ? 'Blokir (PIN)' : 'Aktif') }}</span>
+            <span class="badge {{ $menungguAktivasi && $user->status !== 'blocked' ? ($user->activationDeadlinePassed() ? 'badge-danger' : 'badge-warn') : ($user->status === 'active' && !($user->account?->pin_blocked) ? 'badge-ok' : 'badge-danger') }}">
+                {{ $menungguAktivasi && $user->status !== 'blocked'
+                    ? $user->statusLabel()
+                    : ($user->status !== 'active' ? 'Diblokir' : ($user->account?->pin_blocked ? 'Blokir (PIN)' : 'Aktif')) }}
+            </span>
         </div>
+
+        @if($menungguAktivasi && $user->status !== 'blocked')
+            <div class="card-body" style="padding-bottom:0">
+                <div class="alert alert-warn" style="margin:0">
+                    Akun nasabah ini <strong>belum diaktivasi di aplikasi mobile</strong>, sehingga statusnya nonaktif.
+                    Status aktif diberikan otomatis oleh sistem setelah nasabah menyelesaikan aktivasi
+                    (membuat password). Akun tidak dihapus &mdash; nonaktifkan saja bila sudah tidak dipakai.
+                    @if($user->activation_deadline)
+                        @if($user->activationDeadlinePassed())
+                            Tenggat aktivasi <strong>{{ $user->activation_deadline->format('d/m/Y') }}</strong>
+                            sudah terlewat; akun tetap nonaktif sampai ada aktivasi.
+                        @else
+                            Tenggat aktivasi <strong>{{ $user->activation_deadline->format('d/m/Y') }}</strong>
+                            ({{ $user->activationDaysLeft() }} hari lagi).
+                        @endif
+                    @endif
+                </div>
+            </div>
+        @endif
 
         @if($user->account?->pin_blocked)
             <div class="card-body" style="padding-bottom:0">
@@ -89,9 +114,16 @@
                             <label for="statusSelect">Status akun</label>
                             <select id="statusSelect" name="status" required>
                                 <option value="active" @selected(old('status', $user->status) == 'active')>Aktif</option>
-                                <option value="blocked" @selected(old('status', $user->status) == 'blocked')>Nonaktif</option>
+                                <option value="inactive" @selected(old('status', $user->status) == 'inactive')>Nonaktif (menunggu aktivasi)</option>
+                                <option value="blocked" @selected(old('status', $user->status) == 'blocked')>Nonaktif / Diblokir</option>
                             </select>
-                            <p class="helper">Status login pengguna. Nasabah yang sudah lulus cukup dinonaktifkan (tidak dihapus) agar riwayat transaksi tetap tersimpan. Blokir karena PIN salah 3x dikelola di menu Reset PIN.</p>
+                            <p class="helper">
+                                Akun <strong>tidak dapat dihapus</strong>: nonaktifkan saja agar riwayat transaksi tetap tersimpan.
+                                Nasabah baru berstatus nonaktif sampai menyelesaikan aktivasi di aplikasi mobile
+                                (tenggat 60 hari; lewat tenggat akun tetap nonaktif, tidak dihapus).
+                                Status aktif nasabah diberikan otomatis saat aktivasi berhasil.
+                                Blokir karena PIN salah 3x dikelola di menu Reset PIN.
+                            </p>
                             @error('status')<p class="form-error">{{ $message }}</p>@enderror
                         </div>
                         <div class="field">

@@ -36,6 +36,7 @@ class AdminStudentImportTest extends TestCase
             $table->string('kelas_urut')->nullable();
             $table->unsignedSmallInteger('angkatan')->nullable();
             $table->boolean('must_change_password')->default(false);
+            $table->timestamp('activation_deadline')->nullable();
             $table->rememberToken();
             $table->timestamps();
         });
@@ -97,8 +98,19 @@ class AdminStudentImportTest extends TestCase
             ->assertSessionHas('success', '1 akun siswa dibuat dan menunggu aktivasi.');
 
         $student = User::where('nis', '54321')->firstOrFail();
+
+        // Nasabah baru wajib NONAKTIF sampai aktivasi di aplikasi mobile selesai.
         $this->assertTrue($student->must_change_password);
-        $this->assertSame('active', $student->status);
+        $this->assertSame('inactive', $student->status);
+        $this->assertTrue($student->isAwaitingActivation());
+        $this->assertNotNull($student->activation_deadline);
+        $this->assertTrue(
+            $student->activation_deadline->between(
+                now()->addDays(User::ACTIVATION_WINDOW_DAYS - 1),
+                now()->addDays(User::ACTIVATION_WINDOW_DAYS + 1)
+            )
+        );
+
         $this->assertDatabaseHas('accounts', [
             'user_id' => $student->id,
             'account_number' => 'RPL-' . now()->year . '-01-01',

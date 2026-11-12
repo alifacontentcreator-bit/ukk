@@ -148,16 +148,24 @@ Bila muncul pesan gagal, penyebabnya kini ikut ditampilkan (bukan hanya
 - `app/Console/Commands/TestOtpMail.php` — perintah `php artisan mail:test`.
 ## Perbaikan lain yang ikut di paket upload
 
-- `resources/views/admin/users/index.blade.php` — tombol **hapus** kini tampil
-  di **semua baris** halaman Manajemen Pengguna (sesuai ketentuan kolom Aksi =
-  ubah, blokir, hapus). Sebelumnya tombol hapus disembunyikan untuk akun
-  nasabah, sehingga baris nasabah hanya punya 2 tombol.
-- `app/Http/Controllers/UserController.php` — penghapusan berlaku untuk semua
-  role. Akun nasabah tanpa riwayat transaksi dihapus permanen beserta rekening,
-  notifikasi, dan QR-nya; akun yang **sudah** punya riwayat transaksi/laporan
-  ditolak dengan pesan yang jelas agar jejak audit tetap utuh (gunakan tombol
-  nonaktifkan/blokir). Token login aplikasi mobile ikut dicabut saat akun
-  dihapus.
+- `resources/views/admin/users/index.blade.php` — tombol **hapus** dihapus dari
+  halaman Manajemen Pengguna. Akun admin, supervisor, teller, dan nasabah
+  **tidak dapat dihapus**; kolom Aksi hanya berisi ubah dan blokir/nonaktifkan
+  agar riwayat transaksi serta jejak audit tetap utuh. Nasabah baru tampil
+  dengan status **Menunggu aktivasi** beserta tanggal tenggat aktivasi.
+- `app/Http/Controllers/UserController.php` — penghapusan pengguna tidak lagi
+  disediakan (route `admin.users.destroy` dihapus). Nasabah yang ditambahkan
+  admin dibuat berstatus **nonaktif** sampai menyelesaikan aktivasi di aplikasi
+  mobile, dengan tenggat aktivasi **60 hari**; lewat tenggat akun tetap
+  nonaktif (tidak dihapus) dan masih dapat diaktivasi. Status aktif nasabah
+  hanya diberikan oleh sistem saat aktivasi berhasil.
+- `app/Http/Controllers/Api/V1/AuthController.php` — permintaan kode aktivasi
+  dan proses aktivasi tetap dilayani untuk akun berstatus nonaktif (belum
+  aktivasi); hanya akun yang **diblokir** admin yang ditolak. Aktivasi berhasil
+  mengubah status akun menjadi `active` dan menghapus tenggat aktivasi.
+- `database/migrations/2026_11_12_000001_add_activation_deadline_to_users_table.php`
+  — menambah kolom `activation_deadline` dan menandai akun nasabah yang belum
+  diaktivasi sebagai nonaktif.
 - Setelah upload view, jalankan `php artisan view:clear` supaya Blade lama tidak
   dipakai dari cache.
 

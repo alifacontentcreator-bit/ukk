@@ -34,6 +34,7 @@ class CustomerActivationCodeRequestTest extends TestCase
             $table->string('nisn')->nullable();
             $table->boolean('must_change_password')->default(false);
             $table->timestamp('password_changed_at')->nullable();
+            $table->timestamp('activation_deadline')->nullable();
             $table->rememberToken();
             $table->timestamps();
         });
@@ -397,5 +398,89 @@ class CustomerActivationCodeRequestTest extends TestCase
                 'Kode aktivasi tidak sesuai. Gunakan kode dari email terbaru '
                     . '(kode hanya berlaku 3 menit).'
             );
+    }
+
+    /**
+     * Akun nasabah baru dibuat nonaktif sampai aktivasi selesai. Status
+     * nonaktif tersebut TIDAK boleh menghalangi permintaan kode aktivasi
+     * maupun proses aktivasi itu sendiri.
+     */
+    public function test_akun_nasabah_nonaktif_yang_belum_diaktivasi_tetap_bisa_aktivasi(): void
+    {
+        DB::table('users')->insert([
+            'name' => 'Student Inactive',
+            'username' => '17770',
+            'password' => 'unused',
+            'role' => 'customer',
+            'status' => 'inactive',
+            'email' => 'student008@example.com',
+            'must_change_password' => true,
+            'activation_deadline' => now()->addDays(60),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $sentCode = null;
+        $this->mock(ConfiguredOtpMailer::class, function (MockInterface $mock) use (
+            &$sentCode
+        ): void {
+            $mock->shouldReceive('sendCustomerActivationCode')
+                ->once()
+                ->withArgs(function (
+                    string $email,
+                    string $name,
+                    string $code
+                ) use (&$sentCode): bool {
+                    $sentCode = $code;
+
+                    return $email === 'student008@example.com'
+                        && preg_match('/^[A-Z0-9]{8}$/', $code) === 1;
+                });
+        });
+
+        $this->postJson('/api/v1/auth/request-activation-code', [
+            'username' => '17770',
+        ])->assertAccepted()
+            ->assertJsonPath('code', 'ACTIVATION_CODE_SENT');
+
+        $this->postJson('/api/v1/auth/activate', [
+            'username' => '17770',
+            'activation_code' => $sentCode,
+            'password' => 'new-password-123',
+            'password_confirmation' => 'new-password-123',
+        ])->assertOk()
+            ->assertJsonPath('code', 'ACTIVATION_SUCCESS');
+
+        // Aktivasi mengubah status akun menjadi aktif dan menghapus tenggat.
+        $user = User::where('username', '17770')->firstOrFail();
+        $this->assertSame('active', $user->status);
+        $this->assertFalse($user->must_change_password);
+        $this->assertNull($user->activation_deadline);
+        $this->assertFalse($user->isAwaitingActivation());
+    }
+
+    /**
+     * Akun yang diblokir admin (mis. nasabah alumni) tetap ditolak.
+     */
+    public function test_akun_nasabah_yang_diblokir_tidak_bisa_meminta_kode_aktivasi(): void
+    {
+        DB::table('users')->insert([
+            'name' => 'Student Blocked',
+            'username' => '17780',
+            'password' => 'unused',
+            'role' => 'customer',
+            'status' => 'blocked',
+            'email' => 'student009@example.com',
+            'must_change_password' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->postJson('/api/v1/auth/request-activation-code', [
+            'username' => '17780',
+        ])->assertForbidden()
+            ->assertJsonPath('code', 'ACCOUNT_INACTIVE');
+
+        $this->assertDatabaseCount('customer_activation_tokens', 0);
     }
 }
